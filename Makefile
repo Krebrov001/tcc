@@ -1,6 +1,6 @@
 CC := clang
 CXX := clang++
-EXECUTABLES := make_static find_free
+EXECUTABLES := make_static find_free remove_memcpy
 BINDIR := $(realpath $(dir $(shell which llvm-config)))
 LLVMCONFIG := $(BINDIR)/llvm-config
 LLVMCOMPONENTS := profiledata bitreader option mcparser
@@ -42,6 +42,9 @@ make_static: make_static.cpp
 
 find_free: find_free.cpp
 	$(CXX) $(CXXFLAGS) -o find_free find_free.cpp $(LIBS)
+
+remove_memcpy: remove_memcpy.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $@.cpp $(LIBS)
 
 # Restore model program to original state
 reset:

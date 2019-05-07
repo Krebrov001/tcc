@@ -47,21 +47,24 @@ remove_memcpy: remove_memcpy.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $@.cpp $(LIBS)
 
 # Restore model program to original state
+.PHONY: reset
 reset:
-	cp -af navsses_model/complete_system_io.h working_navsses_model/
-	cp -af navsses_model/complete_system_io.c working_navsses_model/
+	cp -af navsses_model/[^m]*.c navsses_model/*.h working_navsses_model/
+
+# Verify the modified code generates the correct results
+.PHONY: verify
+verify: $(BINDIR)/make_static
+	cp navsses_model/main.c navsses_model/Makefile working_navsses_model/
+	$(MAKE) -C working_navsses_model verify
+	$(MAKE) -C working_navsses_model clean
+	rm -f working_navsses_model/main.c working_navsses_model/Makefile
 
 # Run the make_static program
+.PHONY: run
 run: $(BINDIR)/make_static
 	make_static working_navsses_model/complete_system_io.c working_navsses_model/complete_system_io.h --
 
-# Build the source with clang. It won't build successfully since there is no main(),
-# but it should produce the same results before and after modification. A verify
-# option is needed to ensure that models actually produce the correct *results*
-# after modification.
-build:
-	$(CC) -Wall working_navsses_model/*.c -lm
-
+.PHONY: clean
 clean:
 	rm -f $(EXECUTABLES)
 	sudo rm -f $(addprefix $(BINDIR)/,$(EXECUTABLES))

@@ -41,7 +41,43 @@ class MemcpyMatcher : public MatchFinder::MatchCallback
 	{
 		const CallExpr* call_expr = result.Nodes.getNodeAs<CallExpr>("memcpy_call");
 		if (call_expr != NULL) {
-			
+
+			// Get the destination argument of memcpy
+			const DeclaratorDecl *dst_decl = nullptr;
+			if( const MemberExpr *memexp = dyn_cast<MemberExpr>(call_expr->getArg(1)->IgnoreParenCasts()) ) {
+				dst_decl = dyn_cast<DeclaratorDecl>(memexp->getMemberDecl());
+				outs() << "First arg a member expression\n";
+			}
+			else if( const DeclRefExpr *varexp = dyn_cast<DeclRefExpr>(call_expr->getArg(1)->IgnoreParenCasts()) ) {
+				dst_decl = dyn_cast<DeclaratorDecl>(varexp->getDecl());
+				outs() << "First arg a reference expression\n";
+			}
+			else if( const UnaryOperator *uop = dyn_cast<UnaryOperator>(call_expr->getArg(1)->IgnoreParenCasts()) ) {
+				outs() << "First arg uses a unary op\n";
+				if( const ArraySubscriptExpr *asub = dyn_cast<ArraySubscriptExpr>(uop->getSubExpr()) ) {
+					outs() << "\tArray subscript\n";
+					dst_decl = dyn_cast<DeclaratorDecl>(asub->getBase()->getReferencedDeclOfCallee());
+				}
+				else {
+					outs() << "\tNOT an array subscript\n";
+				}
+			}
+			else {
+				outs() << "First arg not matched\n";
+			}
+			if( dst_decl ){
+				//SourceLocation s = Lexer::GetBeginningOfToken(dst_decl->getExprLoc(), *result.SourceManager, LangOptions());
+				//SourceLocation e = Lexer::getLocForEndOfToken(dst_decl->getExprLoc(), 0, *result.SourceManager, LangOptions());
+				SourceRange r = dst_decl->getSourceRange();
+				CharSourceRange c(r, false);
+				//const string t = Lexer::getSourceText(CharSourceRange::getTokenRange(s,e), *result.SourceManger, LangOptions());
+				const string t = Lexer::getSourceText(c, *result.SourceManager, LangOptions());
+				outs() << "Variable: " << t << "\n";
+			}
+			else {
+				outs() << "ERROR: dst_decl invalid\n";
+			}
+
 			vector<string> arguments;			
 			tok::TokenKind tokens[3] = {tok::comma, tok::comma, tok::r_paren}; 
 			for (int i = 0; i < 3; ++i) {

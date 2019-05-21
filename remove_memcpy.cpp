@@ -2,24 +2,24 @@
  * Add header comments here.
  */
 // Clang LLVM library includes
-#include "clang/AST/ASTConsumer.h"
-#include "clang/AST/ASTContext.h"
-#include "clang/AST/ParentMap.h"
-#include "clang/AST/RecursiveASTVisitor.h"
+//#include "clang/AST/ASTConsumer.h"
+//#include "clang/AST/ASTContext.h"
+//#include "clang/AST/ParentMap.h"
+//#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/ASTMatchers/ASTMatchers.h"
-#include "clang/Rewrite/Core/Rewriter.h"
-#include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/FrontendActions.h"
+//#include "clang/ASTMatchers/ASTMatchers.h"
+//#include "clang/Rewrite/Core/Rewriter.h"
+//#include "clang/Frontend/CompilerInstance.h"
+//#include "clang/Frontend/FrontendActions.h"
 #include "clang/Tooling/CommonOptionsParser.h" 
 #include "clang/Tooling/Refactoring.h"
-#include "clang/Tooling/Tooling.h"
+//#include "clang/Tooling/Tooling.h"
 // C library includes
-#include <cstdlib>
-#include <cstdio>
+//#include <cstdlib>
+//#include <cstdio>
 // C++ library includes
 #include <iostream>
-#include <string>
+//#include <string>
 
 using namespace std;
 using namespace llvm;
@@ -31,6 +31,88 @@ using namespace clang::ast_matchers;
 
 class MemcpyMatcher : public MatchFinder::MatchCallback
 {
+  private:
+    string getArgString(const Expr *expr, const string& var) const {
+		string arg_string;
+		const ValueDecl *valdecl = nullptr;
+
+		// Parse tree until entire type string is determined
+		while( expr ){
+			if( auto memexp = dyn_cast<MemberExpr>(expr) ){
+				valdecl = dyn_cast<ValueDecl>(memexp->getMemberDecl());
+				arg_string = "." + valdecl->getNameAsString();
+				expr = memexp->getBase();
+			}
+			else if( auto varexp = dyn_cast<DeclRefExpr>(expr) ){
+				const ValueDecl *tmpdecl = dyn_cast<ValueDecl>(varexp->getDecl());
+				// Don't erase declaration found with member expression
+				if( !valdecl ) {
+					valdecl = tmpdecl;
+				}
+				arg_string = tmpdecl->getNameAsString() + arg_string;
+				expr = nullptr;
+			}
+			else if( auto unaryop = dyn_cast<UnaryOperator>(expr) ){
+				expr = unaryop->getSubExpr();
+			}
+			else if( auto asubexp = dyn_cast<ArraySubscriptExpr>(expr) ){
+				expr = asubexp->getBase()->IgnoreParenCasts();
+			}
+			else {
+				outs() << "ERROR: Unable to further iteratively parse expression.\n";
+			}
+		}
+
+		if( !valdecl ){
+			outs() << "ERROR: Member expression not a value declaration\n";
+		}
+		if( dyn_cast<clang::PointerType>(valdecl->getType().getTypePtr()) ){
+			arg_string += "[" + var + "]";
+		}
+		else if( dyn_cast<clang::ConstantArrayType>(valdecl->getType().getTypePtr()) ){
+			arg_string += "[" + var + "]";
+		}
+
+		return arg_string;
+	}
+
+	string getSizeString(const Expr *expr, const SourceManager &sm) const {
+		string lhs_string;
+		if( const BinaryOperator *binop = dyn_cast<BinaryOperator>(expr) ) {
+			const Expr *lhs = binop->getLHS()->IgnoreParenCasts();
+			const Expr *rhs = binop->getRHS()->IgnoreParenCasts();
+
+			lhs_string = getSizeString(lhs, sm);
+			lhs_string += binop->getOpcodeStr();
+			lhs_string += getSizeString(rhs, sm);
+		}
+		else if( const DeclRefExpr *varexp = dyn_cast<DeclRefExpr>(expr) ){
+			const ValueDecl *vardecl = dyn_cast<ValueDecl>(varexp->getDecl());
+			if( vardecl ) {
+				lhs_string = vardecl->getNameAsString();
+			}
+			else {
+				lhs_string = "ERROR: DeclRefExpr without ValueDecl";
+			}
+		}
+		else if( const UnaryExprOrTypeTraitExpr *ttexp = dyn_cast<UnaryExprOrTypeTraitExpr>(expr) ){
+			if( UETT_SizeOf == ttexp->getKind() ){
+				lhs_string = "1";
+			}
+			else {
+				lhs_string = "ERROR: Type trait not sizeof";
+			}
+		}
+		else if( const IntegerLiteral *intexp = dyn_cast<IntegerLiteral>(expr) ){
+			lhs_string = intexp->getValue().toString(10, false); // Args are base, signed
+		}
+		else {
+			outs() << "ERROR: Unable to determine size expression.\n";
+		}
+
+		return lhs_string;
+	}
+
   public:
     MemcpyMatcher(map<string, Replacements> * replacements)
 		: replacements(replacements) {}
@@ -39,92 +121,48 @@ class MemcpyMatcher : public MatchFinder::MatchCallback
 	 */
 	virtual void run(const MatchFinder::MatchResult& result)
 	{
-		const CallExpr* call_expr = result.Nodes.getNodeAs<CallExpr>("memcpy_call");
-		if (call_expr != NULL) {
+		const CallExpr* call_expr = nullptr;
+		SourceLocation loc_start;
 
-			// Get the destination argument of memcpy
-			const DeclaratorDecl *dst_decl = nullptr;
-			if( const MemberExpr *memexp = dyn_cast<MemberExpr>(call_expr->getArg(0)->IgnoreParenCasts()) ) {
-				dst_decl = dyn_cast<DeclaratorDecl>(memexp->getMemberDecl());
-				outs() << "First arg a member expression\n";
-			}
-			else if( const DeclRefExpr *varexp = dyn_cast<DeclRefExpr>(call_expr->getArg(0)->IgnoreParenCasts()) ) {
-				dst_decl = dyn_cast<DeclaratorDecl>(varexp->getDecl());
-				outs() << "First arg a reference expression\n";
-			}
-			else if( const UnaryOperator *uop = dyn_cast<UnaryOperator>(call_expr->getArg(0)->IgnoreParenCasts()) ) {
-				outs() << "First arg uses a unary op\n";
-				if( const ArraySubscriptExpr *asub = dyn_cast<ArraySubscriptExpr>(uop->getSubExpr()) ) {
-					outs() << "\tArray subscript\n";
-					dst_decl = dyn_cast<DeclaratorDecl>(asub->getBase()->getReferencedDeclOfCallee());
-				}
-				else if ( const MemberExpr *memexp = dyn_cast<MemberExpr>(uop->getSubExpr()) ) {
-					outs() << "\tMember expression\n";
-					dst_decl = dyn_cast<DeclaratorDecl>(memexp->getMemberDecl());
-					outs() << "\t\tBase: " << dyn_cast<ValueDecl>(memexp->getBase()->getReferencedDeclOfCallee())->getNameAsString();
-					outs() << "." << dst_decl->getNameAsString() << "\n";
-				}
-				else {
-					outs() << "\tunexpected argument to unary operator\n";
-				}
-			}
-			else {
-				outs() << "First arg not matched\n";
-			}
-			if( dst_decl ){
-				//SourceLocation s = Lexer::GetBeginningOfToken(dst_decl->getExprLoc(), *result.SourceManager, LangOptions());
-				//SourceLocation e = Lexer::getLocForEndOfToken(dst_decl->getExprLoc(), 0, *result.SourceManager, LangOptions());
-//				SourceRange r = dst_decl->getSourceRange();
-//				CharSourceRange c(r, false);
-				//const string t = Lexer::getSourceText(CharSourceRange::getTokenRange(s,e), *result.SourceManger, LangOptions());
-//				const string t = Lexer::getSourceText(c, *result.SourceManager, LangOptions());
-//				outs() << "Variable: " << t << "\n";
-				outs() << "\t Destination type: " << dst_decl->getType().getAsString() << "\n";
-				outs() << "\t Destination name: " << dst_decl->getNameAsString() << "\n";
-			}
-			else {
-				outs() << "ERROR: dst_decl invalid\n";
-			}
+		// Remove the C-style cast operator before some memcpy calls.
+		// (void) memcpy(dst, src, size) a common pattern.
+		const CStyleCastExpr *cast_expr = result.Nodes.getNodeAs<CStyleCastExpr>("cast_memcpy_call");
+		if ( cast_expr ){
+			call_expr = dyn_cast<const CallExpr>(cast_expr->getSubExpr());
+			loc_start = cast_expr->getLocStart();
+		}
+		else {
+			call_expr = result.Nodes.getNodeAs<CallExpr>("memcpy_call");
+			loc_start = call_expr->getLocStart();
+		}
 
-			vector<string> arguments;			
-			tok::TokenKind tokens[3] = {tok::comma, tok::comma, tok::r_paren}; 
-			for (int i = 0; i < 3; ++i) {
-				const Expr* argument = call_expr->getArg(i)->IgnoreImplicit();
-                SourceLocation end_of_expression = Lexer::findLocationAfterToken(
-				 argument->getLocEnd(), tokens[i], *result.SourceManager, LangOptions(), false);
-                if (!end_of_expression.isValid()) {
-                    outs() << "ERROR: Unable to find token location at the end of argument " << i << "\n";
-                    return;
-                }
-	            CharSourceRange range = CharSourceRange::getTokenRange(argument->getLocStart(), end_of_expression);
-			    const string text = Lexer::getSourceText(range, *result.SourceManager, LangOptions());
-			    arguments.push_back(text);  // add the string to the list of all arguments
+		if ( call_expr ) {
+			string dst = getArgString(call_expr->getArg(0)->IgnoreParenCasts(), "i");
+			string src = getArgString(call_expr->getArg(1)->IgnoreParenCasts(), "i");
+			string size = getSizeString(call_expr->getArg(2)->IgnoreParenCasts(), *result.SourceManager);
+			unsigned indent = (*result.SourceManager).getPresumedLoc(loc_start).getColumn();
+			// Decrement, but don't let it go negative
+			if( indent > 0 ){
+				--indent;
 			}
-			
-			arguments[0].pop_back();  // delete the ','
-			arguments[1].pop_back();  // delete the ','
-			arguments[2].pop_back();  // delete the ';'
-			arguments[2].pop_back();  // delete the ')'
-			/*
-			for (int i = 0; i < 3; ++i) {
-				cout << arguments[i] << endl;
-		    }
-			*/
-			
-			string loop_header = "for (int mcl_counter = 0; mcl_counter <" + arguments[2] + "; ++mcl_counter) {";
-			string front_end = "((unsigned char*) ", rear_end = ")[mcl_counter]";
-			string full_loop = loop_header + front_end + arguments[0] + rear_end + "=" + front_end + arguments[1]
-			                               + rear_end + ";}";
-			
+			string replacement = "{\r\n";
+			replacement.append(indent+2, ' ');
+			replacement.append("for(int i = 0; i < " + size + "; ++i) {\r\n");
+			replacement.append(indent+4, ' ');
+			replacement.append(dst + " = " + src + ";\r\n");
+			replacement.append(indent+2, ' ');
+			replacement.append("}\r\n");
+			replacement.append(indent, ' ');
+			replacement.append("}");
+
 			// Get the location after the semicolon following the memcpy() call
-            SourceLocation after_semi_loc = Lexer::findLocationAfterToken(
-             call_expr->getLocEnd(), tok::semi, *result.SourceManager, LangOptions(), false);
+            SourceLocation after_semi_loc = Lexer::findLocationAfterToken(call_expr->getLocEnd(), tok::semi, *result.SourceManager, LangOptions(), false);
             if (!after_semi_loc.isValid()) {
                 outs() << "ERROR: Unable to find semicolon location after memcpy() call.\n";
                 return;
             }
-	        CharSourceRange range = CharSourceRange::getTokenRange(call_expr->getLocStart(), after_semi_loc);
-            Replacement memcpy_rep(*result.SourceManager, range, full_loop);
+	        CharSourceRange range = CharSourceRange::getTokenRange(loc_start, after_semi_loc);
+            Replacement memcpy_rep(*result.SourceManager, range, replacement);
 		
 		    if (Error err = (*replacements)[memcpy_rep.getFilePath()].add(memcpy_rep)) {
                 outs() << "ERROR: Error adding replacement that removes memcpy() call.\n";
@@ -157,12 +195,12 @@ int main(int argc, const char **argv)
 	// Prints a tool-specific message about arguments when --help is used
 	OptionCategory remove_memcpy_tool_category("remove_memcpy name", "remove_memcpy description");
     // Define option for output file name.
-    opt<string> OutputFilename("o", desc("Specify output filename"), value_desc("filename"));
+//    opt<string> OutputFilename("o", desc("Specify output filename"), value_desc("filename"));
 	
 	// Define comomn help message printer.
-    extrahelp common_help(CommonOptionsParser::HelpMessage);
+//    extrahelp common_help(CommonOptionsParser::HelpMessage);
     // Define specific help message printer.
-    extrahelp more_help("This program replaces att instances of memcpy() in C/C++ code with a loop."); 
+ //   extrahelp more_help("This program replaces att instances of memcpy() in C/C++ code with a loop."); 
     
 	/* Command line parsing: */
 	
@@ -177,16 +215,22 @@ int main(int argc, const char **argv)
 	// The second argument is a list of source files to parse.
 	RefactoringTool remove_memcpy_tool(optionsParser.getCompilations(), optionsParser.getSourcePathList());
 	
-	outs() << "Starting match finder\n";
+//	outs() << "Starting match finder\n";
 	
-	MatchFinder mf;
 	// Make the MemcpyMatcher class be able to recieve the match results.
 	MemcpyMatcher matcher(&remove_memcpy_tool.getReplacements());
+
+	MatchFinder mf;
 	// Match all callexpressions whose function declaration is named "memcpy",
 	// match all calls to the memcpy() function,
 	// and bind the resultant nodes to the string "memcpy_call", to be later retrieved in the match callback.
-	StatementMatcher memcpy_matcher = callExpr(callee(functionDecl(hasName("memcpy")))).bind("memcpy_call");
+	StatementMatcher cast_memcpy_matcher = cStyleCastExpr(hasSourceExpression(callExpr(callee(functionDecl(hasName("memcpy")))))).bind("cast_memcpy_call");
+	StatementMatcher memcpy_matcher = callExpr(callee(functionDecl(hasName("memcpy"))), unless(hasAncestor(cStyleCastExpr()))).bind("memcpy_call");
+	//StatementMatcher memcpy_matcher = callExpr(callee(functionDecl(hasName("memcpy")))).bind("memcpy_call");
+//	StatementMatcher cast_matcher = cStyleCastExpr().bind("cast");
 	mf.addMatcher(memcpy_matcher, &matcher);
+	mf.addMatcher(cast_memcpy_matcher, &matcher);
+//	mf.addMatcher(cast_matcher, &matcher);
 	
 	// Run the compiler.
 	auto result = remove_memcpy_tool.runAndSave(newFrontendActionFactory(&mf).get());

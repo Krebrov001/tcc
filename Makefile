@@ -61,8 +61,10 @@ verify: $(BINDIR)/make_static
 
 # Run the make_static program
 .PHONY: run
-run: $(BINDIR)/make_static
-	make_static working_navsses_model/complete_system_io.c working_navsses_model/complete_system_io.h --
+run: $(BINDIR)/remove_memcpy
+	remove_memcpy working_navsses_model/complete_system_io.c --
+#run: $(BINDIR)/make_static
+#	make_static working_navsses_model/complete_system_io.c working_navsses_model/complete_system_io.h --
 
 .PHONY: clean
 clean:

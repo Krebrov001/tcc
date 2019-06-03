@@ -4,7 +4,7 @@ EXECUTABLES := make_static find_free remove_memcpy
 BINDIR := $(realpath $(dir $(shell which llvm-config)))
 LLVMCONFIG := $(BINDIR)/llvm-config
 LLVMCOMPONENTS := profiledata bitreader option mcparser
-CXXFLAGS := $(shell $(LLVMCONFIG) --cxxflags)
+CXXFLAGS := $(shell $(LLVMCONFIG) --cxxflags) -fcxx-exceptions
 
 LIBS := \
 	-lclangTooling\
@@ -70,4 +70,3 @@ run: $(BINDIR)/remove_memcpy
 clean:
 	rm -f $(EXECUTABLES)
 	sudo rm -f $(addprefix $(BINDIR)/,$(EXECUTABLES))
-

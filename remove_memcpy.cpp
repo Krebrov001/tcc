@@ -1,27 +1,31 @@
 /*
  * Add header comments here.
  */
-// Clang LLVM library includes
-//#include "clang/AST/ASTConsumer.h"
-//#include "clang/AST/ASTContext.h"
-//#include "clang/AST/ParentMap.h"
-//#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-//#include "clang/ASTMatchers/ASTMatchers.h"
-//#include "clang/Rewrite/Core/Rewriter.h"
-//#include "clang/Frontend/CompilerInstance.h"
-//#include "clang/Frontend/FrontendActions.h"
-#include "clang/Tooling/CommonOptionsParser.h" 
+#include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Refactoring.h"
-//#include "clang/Tooling/Tooling.h"
-// C library includes
-//#include <cstdlib>
-//#include <cstdio>
-// C++ library includes
-#include <iostream>
-//#include <string>
 
-using namespace std;
+#include <cstring>
+#include <string>
+#include <exception>
+#include <stdexcept>
+
+#include "x_macros.h"
+
+// using namespace x; should be replaced with
+// using x::a;
+// using x::b;
+// That way we know what we are using, and where it comes from,
+// and we don't have to include the whole library.
+// Please watch the following videos:
+// https://www.youtube.com/watch?v=4NYC-VU-svE
+// https://www.youtube.com/watch?v=hKZjOKYZZFs
+using std::string;
+using std::stol;
+using std::to_string;
+using std::map;
+
+// TODO: replace these also.
 using namespace llvm;
 using namespace llvm::cl;
 using namespace clang;
@@ -29,9 +33,190 @@ using namespace clang::tooling;
 using namespace clang::ast_matchers;
 
 
-class MemcpyMatcher : public MatchFinder::MatchCallback
+class MemcpyMatchCallback : public MatchFinder::MatchCallback
 {
   private:
+    bool string_is_integer(const string& str) const
+    {
+        if (str.empty())
+            return false;
+
+        string::const_iterator it;
+        for (it = str.begin(); it != str.end() && isdigit(*it); ++it)
+            ;  // empty loop body
+
+        if (it == str.end())
+            return true;
+        else
+            return false;
+    }
+
+    // Since clang::Expr inherits from clang::Stmt, this function can also be used to retrieve a string
+    // representation of clang::Expr.
+    string getStmtAsString(const Expr* expression, const SourceManager &sm) const
+    {
+        // Source:
+        // https://stackoverflow.com/a/37963981/5500589
+        clang::LangOptions lopt;
+        // Get the source range and manager.
+        SourceLocation startLoc = expression->getLocStart();
+        SourceLocation _endLoc = expression->getLocEnd();
+        SourceLocation endLoc = clang::Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
+        //const SourceManager* SM = result.SourceManager;
+
+        // Use LLVM's lexer to get source text.
+       return std::string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
+    }
+
+    string getStringStatic(const string& lhs_string, const string& typeLhs,
+                           const string& rhs_string, const string& typeRhs, const string& oper_string) const
+    {
+        void* lhs_value;
+        void* rhs_value;
+        // Malloc a size to hold any possible data type, long long is the largest.
+        lhs_value = malloc( sizeof(long long) );
+        if (lhs_value == nullptr) {
+            throw std::bad_alloc();
+        }
+        memset(lhs_value, 0, sizeof(long long));
+
+        rhs_value = malloc( sizeof(long long) );
+        if (rhs_value == nullptr) {
+            throw std::bad_alloc();
+        }
+        memset(rhs_value, 0, sizeof(long long));
+
+        string lhs_signedness;
+        string rhs_signedness;
+
+        if (strncmp(typeLhs.c_str(), "unsigned", 8) == 0) {
+            lhs_signedness = "unsigned";
+            //memset(lhs_value, 0, sizeof(long long));
+        } else {
+            lhs_signedness = "signed";
+            //memset(lhs_value, 0xff, sizeof(long long));
+        }
+        if (typeLhs == "") {
+            throw std::invalid_argument("typeLhs is an empty string");
+        #define X(data_type, format_specifier) } else if (typeLhs == #data_type) { \
+            sscanf(lhs_string.c_str(), #format_specifier, (data_type*) lhs_value);
+        DATA_TYPES
+        #undef X
+        } else if (typeLhs == "_Bool") {
+            lhs_signedness = "unsigned";
+            memset(lhs_value, 0, sizeof(long long));
+
+            if (lhs_string == "true") {
+                *((bool*) lhs_value) = true;
+            } else if (lhs_string == "false") {
+                *((bool*) lhs_value) = false;
+            } else {
+                // We cannot scanf() into bool directly, must use unsigned char as a temporary variable.
+                unsigned char temp;
+                sscanf(lhs_string.c_str(), "%hhu", &temp);
+                *((bool*) lhs_value) = temp & 0x1;
+            }
+        } else {
+            throw std::invalid_argument("typeLhs is an unrecognized data type: " + typeLhs + "|");
+        }
+
+        if (strncmp(typeRhs.c_str(), "unsigned", 8) == 0) {
+            rhs_signedness = "unsigned";
+            //memset(rhs_value, 0, sizeof(long long));
+        } else {
+            rhs_signedness = "signed";
+            //memset(rhs_value, 0xff, sizeof(long long));
+        }
+        if (typeRhs == "") {
+            throw std::invalid_argument("typeRhs is an empty string");
+        #define X(data_type, format_specifier) } else if (typeRhs == #data_type) { \
+            sscanf(rhs_string.c_str(), #format_specifier, (data_type*) rhs_value);
+        DATA_TYPES
+        #undef X
+        } else if (typeRhs == "_Bool") {
+            rhs_signedness = "unsigned";
+            memset(rhs_value, 0, sizeof(long long));
+
+            if (rhs_string == "true") {
+                *((bool*) rhs_value) = true;
+            } else if (rhs_string == "false") {
+                *((bool*) rhs_value) = false;
+            } else {
+                // We cannot scanf() into bool directly, must use unsigned char as a temporary variable.
+                unsigned char temp;
+                sscanf(rhs_string.c_str(), "%hhu", &temp);
+                *((bool*) rhs_value) = temp & 0x1;
+            }
+        } else {
+            throw std::invalid_argument("typeRhs is an unrecognized data type: " + typeRhs + "|");
+        }
+
+        if (false) {
+            throw std::runtime_error("C++ is broken!");
+        #define X(lhs_sign, rhs_sign, OP) } else if (lhs_signedness == #lhs_sign && rhs_signedness == #rhs_sign && oper_string == #OP) { \
+            string temp = to_string( *((lhs_sign long long*) lhs_value) OP *((rhs_sign long long*) rhs_value) ); \
+            free(lhs_value); \
+            free(rhs_value); \
+            return temp;
+        OPERATION_DETERMINANTS  // For lack of a better name.
+        #undef X
+        }
+
+         /*
+         } else if (lhs_is_unsigned == true && rhs_is_unsigned == true && oper_string == "*") {
+             string temp = to_string( *((unsigned long long) lhs_value) * *((unsigned long long) rhs_value) );
+             free(lhs_value);
+             free(rhs_value);
+             return temp;
+         }
+         */
+
+        /*
+        // TODO: Reimplement this if-statement with X-macros.
+        if (typeLhs == "char") {
+            sscanf(lhs_string.c_str, "%c", (char*) lhs_value);
+        } else if (typeLhs == "signed char") {
+            sscanf(lhs_string.c_str, "%hhi", (signed char*) lhs_value);
+        } else if (typeLhs == "unsigned char") {
+            sscanf(lhs_string.c_str, "%hhu", (unsigned char*) lhs_value);
+        } else if (typeLhs == "short") {
+            sscanf(lhs_string.c_str, "%hi", (short*) lhs_value);
+        } else if (typeLhs == "unsigned short") {
+            sscanf(lhs_string.c_str, "%hu", (unsigned short*) lhs_value);
+        } else if (typeLhs == "int") {
+            sscanf(lhs_string.c_str, "%i", (int*) lhs_value);
+        } else if (typeLhs == "unsigned int") {
+            sscanf(lhs_string.c_str, "%u", (unsigned int*) lhs_value);
+        } else if (typeLhs == "long") {
+            sscanf(lhs_string.c_str, "%li", (long*) lhs_value);
+        } else if (typeLhs == "unsigned long") {
+            sscanf(lhs_string.c_str, "%lu", (unsigned long*) lhs_value);
+        } else if (typeLhs == "long long") {
+            sscanf(lhs_string.c_str, "%lli", (long long*) lhs_value);
+        } else if (typeLhs == "unsigned long long") {
+            sscanf(lhs_string.c_str, "%llu", (unsigned long long*) lhs_value);
+        } else if (typeLhs == "float") {
+            sscanf(lhs_string.c_str, "%f", (float*) lhs_value);
+        } else if (typeLhs == "double") {
+            sscanf(lhs_string.c_str, "%lf", (double*) lhs_value);
+        } else if (typeLhs == "long double") {
+            sscanf(lhs_string.c_str, "%llf", (long double*) lhs_value);
+        } else if (typeLhs == "_Bool") {
+            if (lhs_string == "true") {
+                ((*bool) lhs_value) = true;
+            } else if (lhs_string == "false") {
+                ((*bool) lhs_value) = false;
+            } else {
+                // We cannot scanf() into bool directly, must use signed char as a temporary variable.
+                signed char temp;
+                sscanf(lhs_string.c_str, "%hhi", &temp);
+                ((*bool) lhs_value) = temp & 0x1;
+            }
+        }
+        */
+
+    }
+
     string getArgString(const Expr *expr, const string& var) const {
 		string arg_string;
 		const ValueDecl *valdecl = nullptr;
@@ -59,12 +244,13 @@ class MemcpyMatcher : public MatchFinder::MatchCallback
 				expr = asubexp->getBase()->IgnoreParenCasts();
 			}
 			else {
-				outs() << "ERROR: Unable to further iteratively parse expression.\n";
+				throw std::range_error("ERROR: Unable to further iteratively parse expression.\n");
+                break;
 			}
 		}
 
 		if( !valdecl ){
-			outs() << "ERROR: Member expression not a value declaration\n";
+			throw std::invalid_argument("ERROR: Member expression not a value declaration\n");
 		}
 		if( dyn_cast<clang::PointerType>(valdecl->getType().getTypePtr()) ){
 			arg_string += "[" + var + "]";
@@ -77,57 +263,104 @@ class MemcpyMatcher : public MatchFinder::MatchCallback
 	}
 
 	string getSizeString(const Expr *expr, const SourceManager &sm) const {
-		string lhs_string;
-		if( const BinaryOperator *binop = dyn_cast<BinaryOperator>(expr) ) {
+		string size_string;
+        // If the size is like something * something,
+        // if there are two expressions and a binary operator combining them.
+        //
+        // A variable defined inside the condition of an if statement has scope only within that
+        // if statement. The advantage of declaring it like this is that we can do initialization and
+        // evaluation of the conditional statement practically in one step, it's an optimization.
+		if (const BinaryOperator *binop = dyn_cast<BinaryOperator>(expr)) {
+            errs() << "BinaryOperator" << '\n';
+            // Get the expressions to the left and right of the binary operator.
 			const Expr *lhs = binop->getLHS()->IgnoreParenCasts();
 			const Expr *rhs = binop->getRHS()->IgnoreParenCasts();
 
-			lhs_string = getSizeString(lhs, sm);
-			lhs_string += binop->getOpcodeStr();
-			lhs_string += getSizeString(rhs, sm);
+            string main_expression = binop->getType().getAsString();
+            string typeLhs = lhs->getType().getAsString();
+            string typeRhs = rhs->getType().getAsString();
+            //string lhs_string = getStmtAsString(lhs, sm);
+            //string rhs_string = getStmtAsString(rhs, sm);
+            string lhs_string  = getSizeString(lhs, sm);
+			string rhs_string  = getSizeString(rhs, sm);
+            string oper_string = binop->getOpcodeStr();
+            outs() << lhs_string << ' ' << oper_string << ' ' << rhs_string << '\n';
+            outs() << typeLhs << ' ' << oper_string << ' ' << typeRhs << '\n';
+
+
+            size_string = getStringStatic(lhs_string, typeLhs, rhs_string, typeRhs, oper_string);
+            outs() << "size_string: = " << size_string << "\n\n";
 		}
 		else if( const DeclRefExpr *varexp = dyn_cast<DeclRefExpr>(expr) ){
 			const ValueDecl *vardecl = dyn_cast<ValueDecl>(varexp->getDecl());
 			if( vardecl ) {
-				lhs_string = vardecl->getNameAsString();
+				size_string = vardecl->getNameAsString();
 			}
 			else {
-				lhs_string = "ERROR: DeclRefExpr without ValueDecl";
+                // We should not return error strings upon a failure in the function, an exceptional condition.
+                // Upon success the function returns a string representing an expression.
+                // The presense of a string being returned implies that the function succeeded.
+                // The program will then assume that the function worked and it will stick that error string
+                // into the source code, which is horribly wrong.
+                // Of course you could have if else statement to distinguish error strings from valid ones,
+                // but as your application scales up and the number of possible errors increases,
+                // it becomes a maintanability problem, prone to errors.
+                //
+                // Just throw that string as an exception, because having a failure in the Clang API is an
+                // exceptional condition.
+                // That way if the function returns a string, we can be sure that it's successful.
+                //
+                // TODO: It would be more professional to throw an instance of a custom class
+                // derived from std::exception.
+				throw string("ERROR: DeclRefExpr without ValueDecl");
 			}
 		}
+        // The size is a
 		else if( const UnaryExprOrTypeTraitExpr *ttexp = dyn_cast<UnaryExprOrTypeTraitExpr>(expr) ){
 			if( UETT_SizeOf == ttexp->getKind() ){
-				lhs_string = "1";
+				size_string = "2";
 			}
 			else {
-				lhs_string = "ERROR: Type trait not sizeof";
+				throw string("ERROR: Type trait not sizeof");
 			}
 		}
+        // The size is a simple integer literal.
 		else if( const IntegerLiteral *intexp = dyn_cast<IntegerLiteral>(expr) ){
-			lhs_string = intexp->getValue().toString(10, false); // Args are base, signed
+            size_string = getStmtAsString(intexp, sm);
+			//size_string = intexp->getValue().toString(10, false); // Args are base, signed
 		}
 		else {
-			outs() << "ERROR: Unable to determine size expression.\n";
+			throw std::invalid_argument("ERROR: Unable to determine size expression.\n");
 		}
 
-		return lhs_string;
+		return size_string;
 	}
 
   public:
-    MemcpyMatcher(map<string, Replacements> * replacements)
+    // TODO: Maybe std::map should be replaced by the LLVM map data structure?
+    MemcpyMatchCallback(map<string, Replacements> * replacements)
 		: replacements(replacements) {}
     /* Callback method for the MatchFinder.
 	 * @param result - Found matching results.
 	 */
 	virtual void run(const MatchFinder::MatchResult& result)
 	{
+        // The value of the pointer itself can be modified,
+        // but the underlying object which it points to is const.
 		const CallExpr* call_expr = nullptr;
+        // Since this SourceLocation is used multiple times in below code,
+        // bring it up.
 		SourceLocation loc_start;
+
+        SM = result.SourceManager;
 
 		// Remove the C-style cast operator before some memcpy calls.
 		// (void) memcpy(dst, src, size) a common pattern.
 		const CStyleCastExpr *cast_expr = result.Nodes.getNodeAs<CStyleCastExpr>("cast_memcpy_call");
 		if ( cast_expr ){
+            // clang::CastExpr::getSubExpr() returns an Expr*
+            // dynamic_cast it into a const CallExpr*
+            // The sub expression of a cast expression is the expression that you're trying to cast.
 			call_expr = dyn_cast<const CallExpr>(cast_expr->getSubExpr());
 			loc_start = cast_expr->getLocStart();
 		}
@@ -137,9 +370,35 @@ class MemcpyMatcher : public MatchFinder::MatchCallback
 		}
 
 		if ( call_expr ) {
-			string dst = getArgString(call_expr->getArg(0)->IgnoreParenCasts(), "i");
-			string src = getArgString(call_expr->getArg(1)->IgnoreParenCasts(), "i");
-			string size = getSizeString(call_expr->getArg(2)->IgnoreParenCasts(), *result.SourceManager);
+
+            //call_expr->dump();
+
+            // Never assume that your functions will return successfully.
+            string dst, src, size;  // strings are default constructed to ""
+
+            /*
+            char number[] = "123";
+            void* a = (void*) new int;
+            sscanf(number, "%d", a);
+            free(a);
+            */
+			//dst = getArgString(call_expr->getArg(0)->IgnoreParenCasts(), "i");
+			//src = getArgString(call_expr->getArg(1)->IgnoreParenCasts(), "i");
+            try {
+			    size = getSizeString(call_expr->getArg(2)->IgnoreParenCasts(), *result.SourceManager);
+            } catch(const string& exp) {
+                errs() << exp << '\n';
+                return;  // Don't do the replacement upon failure to retrieve an argument.
+            } catch (const std::exception& exp) {
+                errs() << exp.what() << '\n';
+                return;
+            } catch (...) {
+                errs() << "An unexpected exception was raised.\n";
+                return;
+            }
+
+            return;
+
 			unsigned indent = (*result.SourceManager).getPresumedLoc(loc_start).getColumn();
 			// Decrement, but don't let it go negative
 			if( indent > 0 ){
@@ -163,7 +422,7 @@ class MemcpyMatcher : public MatchFinder::MatchCallback
             }
 	        CharSourceRange range = CharSourceRange::getTokenRange(loc_start, after_semi_loc);
             Replacement memcpy_rep(*result.SourceManager, range, replacement);
-		
+
 		    if (Error err = (*replacements)[memcpy_rep.getFilePath()].add(memcpy_rep)) {
                 outs() << "ERROR: Error adding replacement that removes memcpy() call.\n";
                 return;
@@ -173,6 +432,7 @@ class MemcpyMatcher : public MatchFinder::MatchCallback
 
   private:
     map<string, Replacements>* replacements;
+    SourceManager* SM;
 	// Add other variables here as needed.
 };
 
@@ -182,28 +442,28 @@ int main(int argc, const char **argv)
 	// Format should be:
 	// $ ./a.out tool_specific options -- clang_specific_options (not used)
 	// By default, input file(s) treated as a positional arguments of the tool-specific part of the options
-	
+
 	// strncmp returns 0 if the strings match, and non-0 otherwise
-	if (argc < 3 && (strncmp(argv[argc - 1], "--", 2)) != 0) {
-		cerr << "Usage:\n$ " << argv[0] << " <source files> --" << endl;
-		return -1;  // error code
+	if (argc < 3 || strncmp(argv[argc - 1], "--", 2) != 0) {
+	    errs() << "Usage:\n$ " << argv[0] << " <source files> --" << '\n';
+	    return -1;  // error code
 	}
-	
+
 	/* Command line options description: */
-	
+
 	// Define code generation tool option category.
 	// Prints a tool-specific message about arguments when --help is used
 	OptionCategory remove_memcpy_tool_category("remove_memcpy name", "remove_memcpy description");
     // Define option for output file name.
 //    opt<string> OutputFilename("o", desc("Specify output filename"), value_desc("filename"));
-	
+
 	// Define comomn help message printer.
 //    extrahelp common_help(CommonOptionsParser::HelpMessage);
     // Define specific help message printer.
- //   extrahelp more_help("This program replaces att instances of memcpy() in C/C++ code with a loop."); 
-    
+ //   extrahelp more_help("This program replaces att instances of memcpy() in C/C++ code with a loop.");
+
 	/* Command line parsing: */
-	
+
 	// Parses the command line arguments for you.
 	// The third argument is a tool-specific options category.
 	CommonOptionsParser optionsParser(argc, argv, remove_memcpy_tool_category);
@@ -214,26 +474,27 @@ int main(int argc, const char **argv)
 	// The first argument is a list of compilations.
 	// The second argument is a list of source files to parse.
 	RefactoringTool remove_memcpy_tool(optionsParser.getCompilations(), optionsParser.getSourcePathList());
-	
+
 //	outs() << "Starting match finder\n";
-	
-	// Make the MemcpyMatcher class be able to recieve the match results.
-	MemcpyMatcher matcher(&remove_memcpy_tool.getReplacements());
+
+	// Make the MemcpyMatchCallback class be able to recieve the match results.
+	MemcpyMatchCallback matcher(&remove_memcpy_tool.getReplacements());
 
 	MatchFinder mf;
-	// Match all callexpressions whose function declaration is named "memcpy",
-	// match all calls to the memcpy() function,
-	// and bind the resultant nodes to the string "memcpy_call", to be later retrieved in the match callback.
+	// match all instances of:
+    // (void) memcpy(/* ... */);
 	StatementMatcher cast_memcpy_matcher = cStyleCastExpr(hasSourceExpression(callExpr(callee(functionDecl(hasName("memcpy")))))).bind("cast_memcpy_call");
+    // match all instances of:
+    // memcpy(/* ... */);
 	StatementMatcher memcpy_matcher = callExpr(callee(functionDecl(hasName("memcpy"))), unless(hasAncestor(cStyleCastExpr()))).bind("memcpy_call");
 	//StatementMatcher memcpy_matcher = callExpr(callee(functionDecl(hasName("memcpy")))).bind("memcpy_call");
 //	StatementMatcher cast_matcher = cStyleCastExpr().bind("cast");
 	mf.addMatcher(memcpy_matcher, &matcher);
 	mf.addMatcher(cast_memcpy_matcher, &matcher);
 //	mf.addMatcher(cast_matcher, &matcher);
-	
+
 	// Run the compiler.
 	auto result = remove_memcpy_tool.runAndSave(newFrontendActionFactory(&mf).get());
-	
+
 	return result;
 }

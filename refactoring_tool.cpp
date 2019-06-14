@@ -61,12 +61,6 @@ int main(int argc, const char **argv)
 	// Prints a tool-specific message about arguments when --help is used
 	OptionCategory remove_memcpy_tool_category("remove_memcpy name", "remove_memcpy description");
     // Define option for output file name.
-//    opt<string> OutputFilename("o", desc("Specify output filename"), value_desc("filename"));
-
-	// Define comomn help message printer.
-//    extrahelp common_help(CommonOptionsParser::HelpMessage);
-    // Define specific help message printer.
- //   extrahelp more_help("This program replaces att instances of memcpy() in C/C++ code with a loop.");
 
 	/* Command line parsing: */
 
@@ -104,10 +98,8 @@ int main(int argc, const char **argv)
     // memcpy(/* ... */);
 	StatementMatcher memcpy_matcher = callExpr(callee(functionDecl(hasName("memcpy"))), unless(hasAncestor(cStyleCastExpr()))).bind("memcpy_call");
 	//StatementMatcher memcpy_matcher = callExpr(callee(functionDecl(hasName("memcpy")))).bind("memcpy_call");
-//	StatementMatcher cast_matcher = cStyleCastExpr().bind("cast");
 	mf.addMatcher(memcpy_matcher, &matcher);
 	mf.addMatcher(cast_memcpy_matcher, &matcher);
-//	mf.addMatcher(cast_matcher, &matcher);
 
 	// Run the compiler.
 	auto result = remove_memcpy_tool.runAndSave(newFrontendActionFactory(&mf).get());

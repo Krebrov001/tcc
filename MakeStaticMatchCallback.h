@@ -2,18 +2,19 @@
 #define MAKE_STATIC_MATCH_CALLBACK_H
 
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/Rewrite/Core/Rewriter.h"
-#include "clang/Tooling/CommonOptionsParser.h"
-#include "clang/Tooling/Refactoring.h"
-#include "clang/Tooling/Tooling.h"
-#include <iostream>
+#include "clang/Tooling/Core/Replacement.h"
+#include <map>
+#include <string>
 
-using namespace std;
-using namespace llvm;
-using namespace llvm::cl;
-using namespace clang;
-using namespace clang::tooling;
-using namespace clang::ast_matchers;
+using std::map;
+using std::string;
+using clang::ast_matchers::MatchFinder;
+using clang::ast_matchers::hasOperatorName;
+using clang::ast_matchers::has;
+using clang::ast_matchers::ignoringParenImpCasts;
+using clang::ast_matchers::hasRHS;
+using clang::ast_matchers::binaryOperator;
+using clang::tooling::Replacements;
 
 class MakeStaticMatchCallback : public MatchFinder::MatchCallback {
   public:

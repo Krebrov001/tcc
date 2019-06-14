@@ -1,18 +1,24 @@
 #include "MakeStaticMatchCallback.h"
 
-#include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/Rewrite/Core/Rewriter.h"
-#include "clang/Tooling/CommonOptionsParser.h"
-#include "clang/Tooling/Refactoring.h"
-#include "clang/Tooling/Tooling.h"
-#include <iostream>
+#include "clang/Lex/Lexer.h"
 
-using namespace std;
-using namespace llvm;
-using namespace llvm::cl;
-using namespace clang;
-using namespace clang::tooling;
-using namespace clang::ast_matchers;
+using clang::CallExpr;
+using clang::SourceLocation;
+using clang::Lexer;
+using clang::LangOptions;
+using clang::CharSourceRange;
+using clang::BinaryOperator;
+using clang::dyn_cast;
+using clang::DeclaratorDecl;
+using clang::MemberExpr;
+using clang::DeclRefExpr;
+using clang::UnaryExprOrTypeTraitExpr;
+using clang::UETT_SizeOf;
+using clang::Expr;
+using clang::tok::semi;
+using clang::tooling::Replacement;
+using llvm::outs;
+using llvm::Error;
 
 void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 
@@ -22,7 +28,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 
 		// Get the location after the semicolon following the free call
 		SourceLocation after_semi_loc = Lexer::findLocationAfterToken(
-			call_expr->getLocEnd(), tok::semi, *Result.SourceManager, LangOptions(), false);
+			call_expr->getLocEnd(), semi, *Result.SourceManager, LangOptions(), false);
 		if (!after_semi_loc.isValid()) {
 			outs() << "ERROR: Unable to find semicolon location after free call.\n";
 			return;
@@ -107,7 +113,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 
 		// Get the location after the semicolon following the calloc call
 		SourceLocation after_semi_loc = Lexer::findLocationAfterToken(
-			assign_expr->getLocEnd(), tok::semi, *Result.SourceManager, LangOptions(), false);
+			assign_expr->getLocEnd(), semi, *Result.SourceManager, LangOptions(), false);
 		if (!after_semi_loc.isValid()) {
 			outs() << "ERROR: Unable to find semicolon location after calloc call.\n";
 			return;

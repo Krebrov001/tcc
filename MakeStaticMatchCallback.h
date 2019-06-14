@@ -26,7 +26,7 @@ class MakeStaticMatchCallback : public MatchFinder::MatchCallback {
 	 *                                    actually perform the source code replacements in the
 	 *                                    refactoring process.
 	 */
-	MakeStaticMatchCallback(map<string, Replacements> *replacements) : replacements(replacements) {}
+	explicit MakeStaticMatchCallback(map<string, Replacements> *replacements) : replacements(replacements) {}
 
 	/**
 	 * Callback method for the MatchFinder, this function gets called whenever a matching
@@ -43,27 +43,27 @@ class MakeStaticMatchCallback : public MatchFinder::MatchCallback {
 	 *
 	 * @param const MatchFinder::MatchResult result - Found matching results.
 	 */
-	virtual void run(const MatchFinder::MatchResult &Result);
+	void run(const MatchFinder::MatchResult &Result) override;
 
 	/**
 	 * Number of calls to free processed by the class.
 	 */
-	unsigned long num_free_calls(void) const { return _num_free_calls; }
+	unsigned int num_free_calls() const { return _num_free_calls; }
 
 	/**
 	 * Number of calls to calloc processed by the class.
 	 */
-	unsigned long num_calloc_calls(void) const { return _num_calloc_calls; }
+	unsigned int num_calloc_calls() const { return _num_calloc_calls; }
 
 	/**
 	 * Code modification occurs by removing the code. Default operation.
 	 */
-	void remove_code(void) { _remove_code = true; }
+	void remove_code() { _remove_code = true; }
 
 	/**
 	 * Code modification occurs by commenting out the code.
 	 */
-	void comment_code(void) { _remove_code = false; }
+	void comment_code() { _remove_code = false; }
 
   private:
 	map<string, Replacements> *replacements;

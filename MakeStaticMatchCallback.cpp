@@ -23,7 +23,7 @@ using llvm::Error;
 void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 
 	// Handle calls to free() by commenting out the call
-	if (const CallExpr *call_expr = Result.Nodes.getNodeAs<CallExpr>("free_call")) {
+	if (const auto *call_expr = Result.Nodes.getNodeAs<CallExpr>("free_call")) {
 		_num_free_calls++;
 
 		// Get the location after the semicolon following the free call
@@ -60,13 +60,13 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 		}
 	}
 	// Handle cases of a calloc() call on right-hand size of assignment operator
-	else if (const BinaryOperator *assign_expr =
+	else if (const auto *assign_expr =
 				 Result.Nodes.getNodeAs<BinaryOperator>("calloc_assign")) {
 		_num_calloc_calls++;
 
 		// Expr for the actual calloc() call
 		const CallExpr *ce = dyn_cast<CallExpr>(assign_expr->getRHS()->IgnoreParenCasts());
-		if (!ce) {
+		if (ce == nullptr) {
 			outs() << "ERROR: Unable to get CallExpr for calloc assignment.\n";
 			return;
 		}
@@ -78,7 +78,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 		} else if (const DeclRefExpr *varexp = dyn_cast<DeclRefExpr>(assign_expr->getLHS())) {
 			var_decl = dyn_cast<DeclaratorDecl>(varexp->getDecl());
 		}
-		if (!var_decl) {
+		if (var_decl == nullptr) {
 			outs() << "ERROR: Unable to get declarator decl for assigned variable.\n";
 			return;
 		}
@@ -86,15 +86,14 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 		// Get the data type used for 2nd argument to calloc and element count
 		// from 1st argument. The data type is required since Matlab/Simulink
 		// coder uses void pointers in declarations.
-		const UnaryExprOrTypeTraitExpr *sizeof_expr =
-			dyn_cast<UnaryExprOrTypeTraitExpr>(ce->getArg(1));
-		if (!sizeof_expr || (sizeof_expr->getKind() != UETT_SizeOf)) {
+		const auto *sizeof_expr = dyn_cast<UnaryExprOrTypeTraitExpr>(ce->getArg(1));
+		if ((sizeof_expr == nullptr) || (sizeof_expr->getKind() != UETT_SizeOf)) {
 			outs() << "ERROR: Unable to get Expr for sizeof or sizeof not in "
 					  "calloc().\n";
 			return;
 		}
 		const Expr *count_expr = ce->getArg(0);
-		if (!count_expr) {
+		if (count_expr == nullptr) {
 			outs() << "ERROR: Unable to get Expr for element count in calloc().\n";
 			return;
 		}

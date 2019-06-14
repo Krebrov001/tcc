@@ -9,14 +9,8 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Refactoring.h"
 
-#include <cstring>
-#include <string>
-
-using std::string;
-
 using llvm::outs;
 using llvm::errs;
-using llvm::nulls;
 using llvm::cl::opt;
 using llvm::cl::desc;
 using llvm::cl::OptionCategory;
@@ -97,7 +91,6 @@ int main(int argc, const char **argv)
     // match all instances of:
     // memcpy(/* ... */);
 	StatementMatcher memcpy_matcher = callExpr(callee(functionDecl(hasName("memcpy"))), unless(hasAncestor(cStyleCastExpr()))).bind("memcpy_call");
-	//StatementMatcher memcpy_matcher = callExpr(callee(functionDecl(hasName("memcpy")))).bind("memcpy_call");
 	mf.addMatcher(memcpy_matcher, &matcher);
 	mf.addMatcher(cast_memcpy_matcher, &matcher);
 

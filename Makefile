@@ -63,10 +63,10 @@ reset:
 # Verify the modified code generates the correct results
 .PHONY: verify
 verify:
-	cp navsses_model/main.c navsses_model/Makefile working_navsses_model/
-	$(MAKE) -C working_navsses_model verify
-	$(MAKE) -C working_navsses_model clean
-	rm -f working_navsses_model/main.c working_navsses_model/Makefile
+	@cp navsses_model/main.c navsses_model/Makefile working_navsses_model/
+	@$(MAKE) -s -C working_navsses_model verify
+	@$(MAKE) -s -C working_navsses_model clean
+	@rm -f working_navsses_model/main.c working_navsses_model/Makefile
 
 # Run the refactoring_tool program
 .PHONY: run

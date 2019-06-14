@@ -46,7 +46,7 @@ void update_statistics(struct statistics_T *stats, double sample);
 void print_results(FILE* out, const char *name, struct statistics_T* abs_stats, struct statistics_T *rel_stats);
 void simulation(double results[9]);
 
-int main(void) {
+int main(int argc, char *argv[]) {
 	double results[NUM_RESULTS]; // Results generated at each step
 	double reference_data[NUM_RESULTS*BLOCK_SIZE];
 	struct statistics_T abs_errs[NUM_RESULTS];
@@ -54,14 +54,21 @@ int main(void) {
 	FILE *reference_fp, *results_fp, *stats_fp;
 	long step, i, j;
 	char save_results = 0;  // Set to save data and statistics to files
-	char reference_file[] = "../dat_files/complete_system_correct_results.dat"; // Output from Simulink Coder software
+	char reference_file[] = "../dat_files/navsses_model.dat";
 	char results_file[] = "results.dat";
 	char stats_file[] = "error_statistics";
+	char debug = 0; // Set to print debug info
 
+	if( argc > 1 ){
+		debug = 1;
+	}
 
 	char error_found = 0;
+	double rel_error_threshold = 0.0; // Maximum relative error before error_found is set
 
-	printf("Initializing\n");
+	if( debug ){
+		printf("Initializing\n");
+	}
 
 	// Initialize statistics
 	for (i = 0; i< NUM_RESULTS; i++ ){
@@ -102,7 +109,9 @@ int main(void) {
 		// Read in next block of data values if needed
 		if( step%BLOCK_SIZE == 0 ){
 			fread(reference_data, sizeof(double), NUM_RESULTS*BLOCK_SIZE, reference_fp);
-			printf("Starting step %ld of %ld ...\n", step, NUM_SIM_STEPS);
+			if( debug ){
+				printf("Starting step %ld of %ld ...\n", step, NUM_SIM_STEPS);
+			}
 		}
 
 		for( j = 0; j < NUM_RESULTS; j++ ){
@@ -113,7 +122,7 @@ int main(void) {
 			double ref_value = reference_data[(step%BLOCK_SIZE)*NUM_RESULTS + j];
 			double err = fabs(sim_value-ref_value);
 			if( err != 0.0 ) {
-				if( fabs(err/ref_value) > 1e-6 )
+				if( fabs(err/ref_value) > rel_error_threshold )
 					error_found = 1;
 			}
 			update_statistics(&abs_errs[j], err);
@@ -127,7 +136,9 @@ int main(void) {
 	complete_system_io_terminate();
 
 	for( i = 0; i < NUM_RESULTS; i++ ){
-		print_results(stdout, result_names[i], &abs_errs[i], &rel_errs[i]);
+		if(debug){
+			print_results(stdout, result_names[i], &abs_errs[i], &rel_errs[i]);
+		}
 		if(save_results){
 			print_results(stats_fp, result_names[i], &abs_errs[i], &rel_errs[i]);
 		}
@@ -140,7 +151,10 @@ int main(void) {
 	}
 
 	if( error_found ){
-		fprintf(stderr, "Results do not match!\n");
+		fprintf(stderr, "Results DO NOT match!\n");
+	}
+	else {
+		printf("Results match reference values.\n");
 	}
 
 	return error_found;

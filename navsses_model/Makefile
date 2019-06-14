@@ -15,7 +15,7 @@ simulate: complete_system
 # Execute the simulation and only print if there's an error
 .PHONY: verify
 verify: complete_system
-	@./complete_system > /dev/null
+	./complete_system
 
 .PHONY: clean
 clean:

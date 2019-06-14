@@ -68,6 +68,11 @@ verify:
 	@$(MAKE) -s -C working_navsses_model clean
 	@rm -f working_navsses_model/main.c working_navsses_model/Makefile
 
+# Run static code analysis checks
+.PHONY: tidy
+tidy:
+	clang-tidy $(CXX_FILES) --
+
 # Run the refactoring_tool program
 .PHONY: run
 run: $(addprefix $(BINDIR)/,$(EXECUTABLE))

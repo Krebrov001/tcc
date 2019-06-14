@@ -30,7 +30,7 @@ LDLIBS := \
 
 # Names of files used in this project.
 EXECUTABLE := refactoring_tool
-CXX_FILES  := refactoring_tool.cpp RemoveMemcpyMatchCallback.cpp
+CXX_FILES  := refactoring_tool.cpp RemoveMemcpyMatchCallback.cpp MakeStaticMatchCallback.cpp
 O_FILES    := $(CXX_FILES:cpp=o)
 
 # What is the purpose of .PHONY in a makefile?
@@ -51,8 +51,9 @@ $(addprefix $(BINDIR)/,$(EXECUTABLE)): $(EXECUTABLE)
 
 # File dependencies
 $(EXECUTABLE): $(O_FILES)
-refactoring_tool.o: refactoring_tool.cpp RemoveMemcpyMatchCallback.h
+refactoring_tool.o: refactoring_tool.cpp RemoveMemcpyMatchCallback.h MakeStaticMatchCallback.h
 RemoveMemcpyMatchCallback.o: RemoveMemcpyMatchCallback.cpp custom_exceptions.h RemoveMemcpyMatchCallback.h
+MakeStaticMatchCallback.o: MakeStaticMatchCallback.cpp MakeStaticMatchCallback.h
 
 # Restore model program to original state
 .PHONY: reset

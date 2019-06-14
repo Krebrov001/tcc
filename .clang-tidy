@@ -1,5 +1,12 @@
 ---
-Checks:          'clang-diagnostic-*,clang-analyzer-*,*,-fuchsia*,-objc*,-android*,-mpi*,-llvm-header-guard'
+# Enable all checks except:
+# -- fuchsia*,objc*,android*,mpi*:
+#      Unrelated language or project specific checks
+# -- llvm-header-guard:
+#      LLVM recommended header guards not appropriate for the project
+# -- google-global-names-in-headers:
+#      Coarsely implemented check that flags common 'using std::map' statements.
+Checks:          'clang-diagnostic-*,clang-analyzer-*,*,-fuchsia*,-objc*,-android*,-mpi*,-llvm-header-guard,-google-global-names-in-headers'
 WarningsAsErrors: ''
 HeaderFilterRegex: '.*'
 AnalyzeTemporaryDtors: false

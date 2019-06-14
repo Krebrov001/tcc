@@ -3,30 +3,24 @@
 
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Refactoring.h"
-#include "llvm/ADT/APInt.h"
 
-#include <stdexcept>
 #include <string>
 
 using std::exception;
 using std::range_error;
 using std::invalid_argument;
 using std::string;
-using std::map;
 
 using llvm::outs;
 using llvm::errs;
-using llvm::nulls;
 using llvm::raw_ostream;
 using llvm::APInt;
 using llvm::Error;
 
 using clang::dyn_cast;
 using clang::isa;
-using clang::Expr;
 using clang::PointerType;
 using clang::ConstantArrayType;
-using clang::CastExpr;
 using clang::CStyleCastExpr;
 using clang::CallExpr;
 using clang::UnaryExprOrTypeTraitExpr;
@@ -43,13 +37,8 @@ using clang::SourceManager;
 using clang::SourceLocation;
 using clang::Lexer;
 using clang::CharSourceRange;
-
-// namespace clang::tok is small enough, and the names defined in it are relatively specific.
-// Needed for tok::semi
-using namespace clang::tok;
-
+using clang::tok::semi;
 using clang::tooling::Replacement;
-using clang::tooling::Replacements;
 using clang::ast_matchers::MatchFinder;
 
 extern bool print_debug_output;  // defined in refactoring_tool.cpp
@@ -203,7 +192,6 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
         if (size_is_zero) {
             replacement = "";
         } else {
-            replacement.append(indent, ' ');
             replacement.append("{\r\n");
             replacement.append(indent+2, ' ');
             replacement.append("for (int i = 0; i < " + size + "; ++i) {\r\n");

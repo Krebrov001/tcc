@@ -3,7 +3,7 @@
  * first, followed by Clang and LLVM API headers. When ytwo headers pertain to the same category,
  * order them alphabetically.
  */
-#include "data_types.h"
+#include "custom_exceptions.h"
 
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/CommonOptionsParser.h"
@@ -16,59 +16,114 @@
 #include <stdexcept>
 #include <string>
 
-// using namespace x; should be replaced with
-// using x::a;
-// using x::b;
-// That way we know what we are using, and where it comes from,
-// and we don't have to include the whole library.
-// Please watch the following videos:
-// https://www.youtube.com/watch?v=4NYC-VU-svE
-// https://www.youtube.com/watch?v=hKZjOKYZZFs
+using std::exception;
+using std::range_error;
+using std::invalid_argument;
 using std::string;
 using std::to_string;
 using std::map;
 
-// TODO: replace these also.
-using namespace llvm;
+/*
+using namespace std;
 using namespace llvm::cl;
 using namespace clang;
 using namespace clang::tooling;
 using namespace clang::ast_matchers;
+*/
+
+using llvm::outs;
+using llvm::errs;
+using llvm::nulls;
+using llvm::raw_ostream;
+using llvm::APInt;
+using llvm::Error;
+using llvm::cl::opt;
+using llvm::cl::desc;
+using llvm::cl::OptionCategory;
+
+using clang::dyn_cast;
+using clang::isa;
+using clang::Expr;
+using clang::PointerType;
+using clang::ConstantArrayType;
+using clang::CastExpr;
+using clang::CStyleCastExpr;
+using clang::CallExpr;
+using clang::UnaryExprOrTypeTraitExpr;
+using clang::UETT_SizeOf;
+using clang::IntegerLiteral;
+using clang::DeclRefExpr;
+using clang::MemberExpr;
+using clang::ValueDecl;
+using clang::ArraySubscriptExpr;
+using clang::UnaryOperator;
+using clang::BinaryOperator;
+using clang::LangOptions;
+using clang::SourceManager;
+using clang::SourceLocation;
+using clang::Lexer;
+using clang::CharSourceRange;
+
+// namespace clang::tok is small enough, and the names defined in it are relatively specific.
+// Needed for tok::semi
+using namespace clang::tok;
+
+using clang::tooling::CommonOptionsParser;
+using clang::tooling::RefactoringTool;
+using clang::tooling::Replacement;
+using clang::tooling::Replacements;
+using clang::tooling::newFrontendActionFactory;
+using clang::ast_matchers::MatchFinder;
+using clang::ast_matchers::StatementMatcher;
+using clang::ast_matchers::hasName;
+using clang::ast_matchers::functionDecl;
+using clang::ast_matchers::cStyleCastExpr;
+using clang::ast_matchers::callee;
+using clang::ast_matchers::callExpr;
+using clang::ast_matchers::hasAncestor;
+using clang::ast_matchers::unless;
+using clang::ast_matchers::hasSourceExpression;
+
+// Global variable is non static so that it can be externed into other translation units.
+bool print_debug_output = false;
 
 
-class BadOperator : public std::exception {
-  public:
-    BadOperator(const char* reason) : exception(), reason(reason) {}
-
-    const char* what() const throw()
-    {
-        return reason;
-    }
-  private:
-    const char* reason;
-};
-
-
-class NonMatchingTypes : public std::exception {
-  public:
-    NonMatchingTypes(const string& data_type1, const string& data_type2)
-    : exception(), reason() {
-        reason = "ERROR: Data types don't match: " + data_type1 + " and " + data_type2;
-    }
-
-    const char* what() const throw()
-    {
-        return reason.c_str();
-    }
-  private:
-    string reason;
-};
-
-
-// TODO: Rearrange the public and private functions inside the class logically.
-class MemcpyMatchCallback : public MatchFinder::MatchCallback
+/**
+ * This class is the CallBack class for removing memcpy.
+ * Whenever a memcpy() function call instance is detected in the main() function, it uses
+ * this class as a callback and it calls the run() method, which then replaces that memcpy()
+ * function call with a functionally equivelent block of code.
+ */
+class RemoveMemcpyMatchCallback : public MatchFinder::MatchCallback
 {
   private:
+    /**
+     * This function prints the full expression, the filename where this expression originated,
+     * the row number (line number), and the column number. It is used for diagnostic purposes.
+     *
+     * @param const Expr* expr - An expression. This pointer can point to an Expr object or an
+     *                    object of any data type derived from that class.
+     *
+     * @param raw_ostream& output - A reference to an LLVM raw output stream, which is
+     *                     an extremely fast bulk output stream that can only output to a stream.
+     *                     Data can be written to a different destination depending on the value of
+     *                     this parameter. It can be llvm::outs(), llvm::errs(), or llvm::nulls().
+     *                     The reference is non-const because writing output to an instance of a
+     *                     stream class causes that object to be modified.
+     *
+     * @param const SourceLocation& loc_start - The starting location of the passed in expression.
+     *              Passing it in as a parameter means that we don't have to know precisely what
+     *              type the expression is, which we must know in order to determine the
+     *              SourceLocation manually.
+     */
+    void outputExpression(const Expr* expr, raw_ostream& output, const SourceLocation& loc_start)
+    {
+        output << getExprAsString(expr) << '\n';
+        output << "in "<< SM->getFilename(loc_start) << ':';
+        output << SM->getPresumedLineNumber(loc_start) << ':';
+        output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
+    }
+
     /**
      * @param const Expr* expression - A pointer to an instance of clang::Expr,
      *        or one of it's derived types.
@@ -82,19 +137,20 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
         const SourceManager &sm = *SM;
         // Source:
         // https://stackoverflow.com/a/37963981/5500589
-        clang::LangOptions lopt;
+        LangOptions lopt;
         // Get the source range and manager.
         SourceLocation startLoc = expression->getLocStart();
         SourceLocation _endLoc = expression->getLocEnd();
-        SourceLocation endLoc = clang::Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
+        SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
 
         // Use LLVM's lexer to get source text.
-        return std::string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
+        return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
     }
 
     /**
      * This function takes an expression holding a numberical value, and returns an APInt
      * holding that value, which can then be manipulated in the C++ code as an integral data type.
+     * This helper function is called by RemoveMemcpyMatchCallback::getSizeString().
      *
      * @param const Expr* expression - Usually this is an IntegerLiteral or a
      *                    UnaryExprOrTypeTraitExpr AKA sizeof() expression.
@@ -104,12 +160,15 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
      *         If an IntegerLiteral is passed in, the APInt holds the value of that IntegerLiteral.
      *         If a sizeof() expression is passed in, the APInt holds 1U.
      *
-     * @throw string if The type trait is not a sizeof() expression.
+     * @throw std::string if The type trait is not a sizeof() expression.
      *
      * @throw std::invalid_argument if the expr is something other than an IntegerLiteral or a
      *        sizeof() expression.
+     *
+     * @throw NonMatchingTypes if the data type of this particular argument to memcpy()
+     *        doesn't match the data types to other processed arguments to memcpy().
      */
-    llvm::APInt getVal(const Expr *expr) const
+    APInt getVal(const Expr *expr) const
     {
         // The expr is a sizeof() expression.
         if ( const UnaryExprOrTypeTraitExpr *ttexp = dyn_cast<UnaryExprOrTypeTraitExpr>(expr) ) {
@@ -125,7 +184,7 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
                     throw NonMatchingTypes(type_string, this_data_type);
                 }
 
-                return llvm::APInt(32U, 1U, false);  // uint32_t, value is 1
+                return APInt(32U, 1U, false);  // uint32_t, value is 1
 			} else {
 				throw string("ERROR: Type trait not sizeof");
 			}
@@ -133,29 +192,8 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
         } else if ( const IntegerLiteral *intexp = dyn_cast<IntegerLiteral>(expr) ) {
 			  return intexp->getValue();
 		} else {
-			throw std::invalid_argument("ERROR: Unable to determine size expression.");
+			throw invalid_argument("ERROR: Unable to determine size expression.");
 		}
-    }
-
-    /**
-     * @param const Expr* expr - If the passed in expr is of the form &x or x[0],
-     *                    then this function peels of these layers, along with any casts and
-     *                    parenthesis to yield an expression of the form x.
-     *
-     * @return const Expr* - The same as the input expr, just with the outer layers pulled away.
-     */
-    const Expr* peelAwayLayers(const Expr* expr) const
-    {
-        while (true) {
-            if (auto unaryop = dyn_cast<UnaryOperator>(expr))
-                expr = unaryop->getSubExpr()->IgnoreParenCasts();
-            else if (auto asubexp = dyn_cast<ArraySubscriptExpr>(expr))
-                expr = asubexp->getBase()->IgnoreParenCasts();
-            else
-                break;
-        }
-
-        return expr;
     }
 
     /**
@@ -231,62 +269,25 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
                 // getBase() returns the x, IgnoreParenCasts() is necessary to go past the ImplicitCastExpr
                 // expr becomes just x, peels away the [0] and any cast and parenthesis expressions
 				expr = asubexp->getBase()->IgnoreParenCasts();
-            /*
-            // If the expression is a binary operator for pointer arithmetic, such as array + 2.
-            } else if ( auto ptropexp = dyn_cast<BinaryOperator>(expr)) {
-                // The only two supported operators are + and -
-                string oper_string = binop->getOpcodeStr();
-                // Get the expressions to the left and right of the binary operator.
-    			const Expr *lhs = binop->getLHS()->IgnoreParenCasts();
-    			const Expr *rhs = binop->getRHS()->IgnoreParenCasts();
-                // If these expressions have & or [0] before and after them, these laywers get
-                // peeled away.
-                lhs = peelAwayLayers(lhs);
-                rhs = peelAwayLayers(rhs);
-
-                bool lhs_expr = isa<MemberExp>(lhs) || isa<DeclRefExpr>(lhs);
-                bool rhs_expr = isa<MemberExp>(rhs) || isa<DeclRefExpr>(rhs);
-
-                if (oper_string == "+") {
-                    // x + 2
-                    if (lhs_expr && !rhs_expr) {
-                        expr = lhs;
-                    // 2 + x
-                    } else if (!lhs_expr && rhs_expr) {
-                        expr = rhs;
-                    } else {
-                        throw BadOperator("ERROR: Invalid pointer arithmetic expression.");
-                    }
-                } else if (oper_string == '-') {
-                    // x - 2
-                    if (lhs_expr && !rhs_expr) {
-                        expr = lhs;
-                    } else {
-                        throw BadOperator("ERROR: Invalid pointer arithmetic expression.");
-                    }
-                } else {
-                    throw BadOperator("ERROR: Unrecognized BinaryOperator.");
-                }
-            */
 			} else {
-				throw std::range_error("ERROR: Unable to further iteratively parse expression.");
+				throw range_error("ERROR: Unable to further iteratively parse expression.");
 			}
 		}
 
         // If we failed to point valdecl to a vald ValueDecl for some reason.
 		if (!valdecl) {
-			throw std::invalid_argument("ERROR: Member expression not a value declaration.");
+			throw invalid_argument("ERROR: Member expression not a value declaration.");
 		}
 
         string this_data_type;
 
         // If the ValueDecl represents a pointer type or an array type,
         // then we add the array subscript operator to it: x[i]
-		if ( auto ptrtype = dyn_cast<clang::PointerType>(valdecl->getType().getTypePtr()) ) {
+		if ( auto ptrtype = dyn_cast<PointerType>(valdecl->getType().getTypePtr()) ) {
 			arg_string += "[" + var + "]";
             // If the data type is int*, get the pointee type which is int.
             this_data_type = ptrtype->getPointeeType().getAsString();
-		} else if ( auto arraytype = dyn_cast<clang::ConstantArrayType>(valdecl->getType().getTypePtr()) ) {
+		} else if ( auto arraytype = dyn_cast<ConstantArrayType>(valdecl->getType().getTypePtr()) ) {
 			arg_string += "[" + var + "]";
             // If the data type is int [4], get the element type which is int.
             this_data_type = arraytype->getElementType().getAsString();
@@ -312,26 +313,46 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
 	}
 
     /**
-     * This function, being given "data type" as a string, returns sizeof(data type).
+     * Being given an expression which is the third argumetn to memcpy() (size_T n),
+     * which is the number of bytes to copy, this function returns a string which is the number
+     * of elements to copy, since my current algorithm copies elements element by element
+     * instead of byte by byte as memcpy() does.
+     * NOTE: This function is not recursive.
      *
-     * @param const string& type_string - A data type encoded in a string, such as "int"
+     * This algorithm recognizes the following types of expressions:
+     * an integer literal, a sizeof() expression, a variable, and a binary operator.
+     * sizeof() expressions always return 1 by convention. Integer literals and variables
+     * return a string representation of themselves divided by the sizeof() the element.
      *
-     * @returns the sizeof() that data type in bytes.
+     * For binary operators, a variable OP variable expression is also divided by the sizeof() the
+     * element. However if one or both sides of the binary operator are a literal, then the whole
+     * expression is not divided by the sizeof() the element, because it is assumed that one of the
+     * operands is a sizeof() expression.
      *
-     * @throw std::string if type_string is empty or it holds an unrecognized data type.
+     * If an optimization can be achieved which is conformant to the C standards, it is done.
+     * An example of such optimization would be evaluating the binary operator expression
+     * and returning the result when both operands are literals.
+     *
+     * @param const Expr* expr - The size expression which is the third argumetn to memcpy().
+     *                    Valid types are BinaryOperator, DeclRefExpr, UnaryExprOrTypeTraitExpr,
+     *                    and IntegerLiteral.
+     *
+     * @return string - A string representing the number of elements to copy, necessary for
+     *                  producing the same effect as memcpy().
+     *
+     * @throw BadOperator if the BinaryOperator is not recognized/supported by the function yet.
+     *
+     * @throw std::string if the type_string is empty or if the type trait associated with the
+     *        UnaryExprOrTypeTraitExpr is not sizeof().
+     *
+     * @throw std::invalid_argument - This is due to an invalid const Expr *expr being passed in.
+     *                                If the DeclRefExpr does not have an associated ValueDecl, or
+     *                                if the Expr is not one of the recognized types
+     *                                mentioned above.
+     *
+     * @throw NonMatchingTypes if the data type of this particular argument to memcpy()
+     *        doesn't match the data types to other processed arguments.
      */
-    unsigned int getSizeof(const string& type_string) const {
-        if (type_string.empty()) {
-            throw string("ERROR: type_string is empty.");
-        #define X(data_type) } else if (type_string == #data_type) { \
-            return sizeof(data_type);
-        DATA_TYPES
-        #undef X
-        } else {
-            throw string("ERROR: unrecognized data type (" + type_string + ").");
-        }
-    }
-
 	string getSizeString(const Expr *expr) const {
         // Case 1: If the size is like something * something,
         // if there are two expressions and a binary operator combining them.
@@ -355,13 +376,13 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
 
             // literal OP literal
             if (lhs_literal && rhs_literal) {
-                llvm::APInt lhs_val = getVal(lhs);
-                llvm::APInt rhs_val = getVal(rhs);
+                APInt lhs_val = getVal(lhs);
+                APInt rhs_val = getVal(rhs);
                 if (oper_string == "*") {
-                    llvm::APInt result = lhs_val * rhs_val;
+                    APInt result = lhs_val * rhs_val;
                     return result.toString(10, false); // Args are base = 10, signed = false
                 } else if (oper_string == "<<") {
-                    llvm::APInt result = lhs_val << rhs_val;
+                    APInt result = lhs_val << rhs_val;
                     return result.toString(10, false); // Args are base = 10, signed = false
                 // Other BinaryOperators are not yet supported.
                 } else {
@@ -369,7 +390,7 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
                 }
             // literal OP variable
             } else if (lhs_literal && !rhs_literal) {
-                llvm::APInt lhs_val = getVal(lhs);
+                APInt lhs_val = getVal(lhs);
                 // 0 << var == 0
                 // 0 *  var == 0
                 if (lhs_val == 0U) {
@@ -391,7 +412,7 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
                 }
             // variable OP literal
             } else if (!lhs_literal && rhs_literal) {
-                llvm::APInt rhs_val = getVal(rhs);
+                APInt rhs_val = getVal(rhs);
                 if (rhs_val == 0U) {
                     // var * 0 == 0
                     if (oper_string == "*") {
@@ -425,7 +446,8 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
                 // sizeof(element).
                 // We didn't have this problem above because we assumed that one of the literals
                 // is a sizeof() expression.
-                string size_string = "(" + getExprAsString(binop) + ") / " + to_string( getSizeof(type_string) );
+                string size_string = "(" + getExprAsString(binop) + ")";
+                size_string.append(" / sizeof(" + type_string + ")");
                 return size_string;
             }
 
@@ -439,10 +461,10 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
                 }
                 // The third operand to memcpy() is the number of bytes, so if it's a single
                 // variable, we have to divide that number of bytes by the sizeof(element).
-				string size_string = vardecl->getNameAsString() + "/" + to_string( getSizeof(type_string) );
+				string size_string = vardecl->getNameAsString() + " / sizeof(" + type_string + ")";
                 return size_string;
 			} else {
-				throw std::invalid_argument("ERROR: DeclRefExpr without ValueDecl");
+				throw invalid_argument("ERROR: DeclRefExpr without ValueDecl");
 			}
         // Case 3: If the size is a sizeof() expression, always return "1".
 		} else if ( const UnaryExprOrTypeTraitExpr *ttexp = dyn_cast<UnaryExprOrTypeTraitExpr>(expr) ) {
@@ -468,17 +490,15 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
             }
             // The third operand to memcpy() is the number of bytes, so if it's an IntegerLiteral,
             // it should be divided by sizeof(element).
-            // -> and . operators have left to right associativity.
-            // getValue() returns APInt, then on that APInt we call the function
-            // APInt APInt::udiv( uint64_t RHS ) const
-            // which returns a new APInt that we assign to result.
-            llvm::APInt result = intexp->getValue().udiv( getSizeof(type_string) );
-            // If result < getSizeof(type_string), then it will become 0.
-            // If the number of bytes to copy is < the sizeof(element), then don't do a memcpy().
-            return result.toString(10, false); // Args are base = 10, signed = false
+            // getValue() returns APInt, then on that APInt we call the function toString().
+            APInt result = intexp->getValue();
+            string result_string = result.toString(10, false); // Args are base = 10, signed = false
+            // operator +=() is an inline function, which internally calls append().
+            result_string.append(" / sizeof(" + type_string + ")");
+            return result_string;
         // Default: Something else which is an error.
 		} else {
-			throw std::invalid_argument("ERROR: Unable to determine size expression.");
+			throw invalid_argument("ERROR: Unable to determine size expression.");
 		}
 
         // The llvm_unreachable function can be used to document areas of control flow that
@@ -495,22 +515,40 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
 
   public:
     // TODO: Maybe std::map should be replaced by the LLVM map data structure?
-    MemcpyMatchCallback(map<string, Replacements> * replacements)
+    RemoveMemcpyMatchCallback(map<string, Replacements> * replacements)
 		: replacements(replacements), SM(nullptr), type_string() {}
 
     /**
      * The destructor gets called when the Call Back object gets destroyed,
      * when all the replacements have either been applied successfully or failed.
-     * The number of memcpy() replacements.
+     * If print_debug_output is set to true, it prints the number of matches found and the number
+     * of successful memcpy() replacements. If the program successfully replaced all occurances
+     * of memcpy(), then these two printed numbers will be equal.
      */
-    ~MemcpyMatchCallback()
+    ~RemoveMemcpyMatchCallback()
     {
-        outs() << num_matches_found << " matches found\n";
-        outs() << "Number of memcpy() replacements: " << num_replacements << "\n";
+        if (print_debug_output) {
+            outs() << num_matches_found << " matches found\n";
+            outs() << "Number of memcpy() replacements: " << num_replacements << "\n";
+        }
     }
 
-    /* Callback method for the MatchFinder.
-	 * @param result - Found matching results.
+    /**
+     * Callback method for the MatchFinder, this function gets called whenever a matching
+     * expression is found. This is either a CallExpr or a CStyleCastExpr.
+     * Either way, the call to memcpy() is extracted from this expression, it is analyzed,
+     * and the program tries to evaluate the arguments to the memcpy() function call.
+     *
+     * If successful, then a functionally equivalent block of code as a replacement is
+     * constructed, and the replacement is applied, and if print_debug_output is set to true,
+     * then a diagnostic message is printed. You set it to true by specifying -debug on the
+     * command line.
+     * If unsuccessful, an error is raised, and that error always gets printed to the stderr
+     * together with the expression which caused the error, regardless of whether the debug flag
+     * is set or not.
+     * This function catches all exceptions that the functions that it calls throw.
+     *
+	 * @param const MatchFinder::MatchResult result - Found matching results.
 	 */
 	virtual void run(const MatchFinder::MatchResult& result)
 	{
@@ -541,67 +579,99 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
 
         // if we succeeded getting a CallExpr out of the result.
 		if (call_expr) {
-            outs() << getExprAsString(call_expr) << '\n';
-            outs() << "in "<< SM->getFilename(loc_start) << ':';
-            outs() << SM->getPresumedLineNumber(loc_start) << ':';
-            outs() << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
-
             string dst, src, size;  // strings are default constructed to ""
 
-            // Never assume that your functions will return successfully.
+            // NOTE: Do not rearrange the order of these three chunks of code!
+            // This is important, the arguments of memcpy() are processed from left to right.
+            // First,  argument 0 (void *dest) is processed by getArgString().
+            // Second, argument 1 (const void *src) is processed by getArgString().
+            // Third,  argument 2 (size_t n) is processed by getSizeString().
+            // This is necessary in order to properly determine the element type.
+            // The class data member string type_string is set to the type of the element, and is
+            // subsequently used for error checking.
+            // Initiallly it gets constructed to the empty string.
+            // Then when getArgString() is called for the first time and argument 0 is processed,
+            // the type_string is set to the type of the element.
+            // The next time getArgString() is called, and argument 1 is processed, the type of the
+            // argument is verified to match the type string.
+            // Then getSizeString() is called, and argument 2 is processed, and the type within the
+            // sizeof() expression is once again verified to match the type string.
+            // The functions should be called in this specific order.
+
+            // Never assume that your functions will return successfully,
+            // always catch any possible exceptions.
+
+            // First,  argument 0 (void *dest) is processed by getArgString().
             try {
 			    dst = getArgString(call_expr->getArg(0)->IgnoreParenCasts(), "i");
-            } catch (const std::exception& exp) {
+            } catch (const exception& exp) {
+                outputExpression(call_expr, errs(), loc_start);
                 errs() << exp.what() << '\n';
-                outs() << "\n\n";
+                errs() << "\n\n";
                 return;  // Don't do the replacement upon failure to retrieve an argument.
             } catch(const string& exp) {
+                outputExpression(call_expr, errs(), loc_start);
                 errs() << exp << '\n';
-                outs() << "\n\n";
+                errs() << "\n\n";
                 return;
             } catch (...) {
+                outputExpression(call_expr, errs(), loc_start);
                 errs() << "An unexpected exception was raised.\n";
-                outs() << "\n\n";
+                errs() << "\n\n";
                 return;
             }
 
+            // Second, argument 1 (const void *src) is processed by getArgString().
             try {
 			    src = getArgString(call_expr->getArg(1)->IgnoreParenCasts(), "i");
-            } catch (const std::exception& exp) {
+            } catch (const exception& exp) {
+                outputExpression(call_expr, errs(), loc_start);
                 errs() << exp.what() << '\n';
-                outs() << "\n\n";
+                errs() << "\n\n";
                 return;  // Don't do the replacement upon failure to retrieve an argument.
             } catch(const string& exp) {
+                outputExpression(call_expr, errs(), loc_start);
                 errs() << exp << '\n';
-                outs() << "\n\n";
+                errs() << "\n\n";
                 return;
             } catch (...) {
+                outputExpression(call_expr, errs(), loc_start);
                 errs() << "An unexpected exception was raised.\n";
-                outs() << "\n\n";
+                errs() << "\n\n";
                 return;
             }
 
+            // Third, argument 2 (size_t n) is processed by getSizeString().
             try {
 			    size = getSizeString(call_expr->getArg(2)->IgnoreParenCasts());
-            } catch (const std::exception& exp) {
+            } catch (const exception& exp) {
+                outputExpression(call_expr, errs(), loc_start);
                 errs() << exp.what() << '\n';
-                outs() << "\n\n";
+                errs() << "\n\n";
                 return;  // Don't do the replacement upon failure to retrieve an argument.
             } catch(const string& exp) {
+                outputExpression(call_expr, errs(), loc_start);
                 errs() << exp << '\n';
-                outs() << "\n\n";
+                errs() << "\n\n";
                 return;
             } catch (...) {
+                outputExpression(call_expr, errs(), loc_start);
                 errs() << "An unexpected exception was raised.\n";
-                outs() << "\n\n";
+                errs() << "\n\n";
                 return;
             }
 
 			unsigned indent = SM->getPresumedLoc(loc_start).getColumn();
-			// Decrement, but don't let it go negative.
+			// Decrement, but don't let it go "negative".
+            // For unsigned numbers, (indent != 0) is a better condition, because there are no
+            // negative numbers, but we don't want to decrement 0 and roll over to the largest
+            // possible unsigned number.
+            // NOTE: This is needed because initially the indent position is one character position
+            // after the starting location. It needs to be at the exact character position of the
+            // starting location.
+            // If the indent is already 0, then we can't go any farther to the left.
             // Conditional operator is more efficient in that there is no branch instruction.
-            // NOTE: Why do we need this anyway?
-            indent = (indent > 0) ? (indent - 1) : indent;
+            indent = (indent != 0) ? (indent - 1) : indent;
 
             // This is a particular replacement, whereas replacements is a map of all of them.
             string replacement;
@@ -625,20 +695,27 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
             }
 
 			// Get the location after the semicolon following the memcpy() call
-            SourceLocation after_semi_loc = Lexer::findLocationAfterToken(call_expr->getLocEnd(), tok::semi, *SM, LangOptions(), false);
+            SourceLocation after_semi_loc = findLocationAfterToken(call_expr->getLocEnd(), semi, *SM, LangOptions(), false);
             if (!after_semi_loc.isValid()) {
+                outputExpression(call_expr, errs(), loc_start);
                 errs() << "ERROR: Unable to find semicolon location after memcpy() call.\n";
+                errs() << "\n\n";
                 return;
             }
 	        CharSourceRange range = CharSourceRange::getTokenRange(loc_start, after_semi_loc);
             Replacement memcpy_rep(*SM, range, replacement);
 
 		    if (Error err = (*replacements)[memcpy_rep.getFilePath()].add(memcpy_rep)) {
+                outputExpression(call_expr, errs(), loc_start);
                 errs() << "ERROR: Error adding replacement that removes memcpy() call.\n";
+                errs() << "\n\n";
                 return;
             } else {
-                outs() << "replaced with:\n" << replacement << '\n';
-                outs() << "\n\n";
+                if (print_debug_output) {
+                    outputExpression(call_expr, outs(), loc_start);
+                    outs() << "replaced with:\n" << replacement << '\n';
+                    outs() << "\n\n";
+                }
                 // No error, increment the number of memcpy() replacements to print to the user.
                 ++num_replacements;
             }
@@ -658,9 +735,12 @@ class MemcpyMatchCallback : public MatchFinder::MatchCallback
 	// Add other variables here as needed.
 };
 
-unsigned int MemcpyMatchCallback::num_replacements  = 0;
-unsigned int MemcpyMatchCallback::num_matches_found = 0;
+unsigned int RemoveMemcpyMatchCallback::num_replacements  = 0;
+unsigned int RemoveMemcpyMatchCallback::num_matches_found = 0;
 
+// <bool> Says that this option takes no argument, and is to be treated as a bool value only.
+// If this option is set, then the variable becomes true, otherwise it becomes false.
+opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
 
 int main(int argc, const char **argv)
 {
@@ -692,6 +772,14 @@ int main(int argc, const char **argv)
 	// Parses the command line arguments for you.
 	// The third argument is a tool-specific options category.
 	CommonOptionsParser optionsParser(argc, argv, remove_memcpy_tool_category);
+
+    // CommonOptionsParser optionsParser has to be constructed before DebugOutput can be used.
+    // Internally, it calls cl::ParseCommandLineOptions, which sets the value of the DebugOutput
+    // depending on the presence or absence of the -debug flag in the command line arguments.
+    // cl::opt<T> is a class which has an operator T() method, in this case it is used to convert
+    // to bool. It's easier to work with build in data types than classes.
+    print_debug_output = DebugOutput;
+
 	/* Run the Clang compiler for the each input file separately
      * (one input file - one output file).
      *	This is default ClangTool behaviour.
@@ -702,8 +790,8 @@ int main(int argc, const char **argv)
 
 //	outs() << "Starting match finder\n";
 
-	// Make the MemcpyMatchCallback class be able to recieve the match results.
-	MemcpyMatchCallback matcher(&remove_memcpy_tool.getReplacements());
+	// Make the RemoveMemcpyMatchCallback class be able to recieve the match results.
+	RemoveMemcpyMatchCallback matcher(&remove_memcpy_tool.getReplacements());
 
 	MatchFinder mf;
 	// match all instances of:

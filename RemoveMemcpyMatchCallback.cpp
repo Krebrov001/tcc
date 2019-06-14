@@ -53,10 +53,8 @@ unsigned int RemoveMemcpyMatchCallback::num_matches_found = 0;
 
 RemoveMemcpyMatchCallback::~RemoveMemcpyMatchCallback()
 {
-    if (print_debug_output) {
-        outs() << num_matches_found << " matches found\n";
+        outs() << "Number of memcpy() matches found: " << num_matches_found << "\n";
         outs() << "Number of memcpy() replacements: " << num_replacements << "\n";
-    }
 }
 
 

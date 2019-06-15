@@ -58,15 +58,13 @@ MakeStaticMatchCallback.o: MakeStaticMatchCallback.cpp MakeStaticMatchCallback.h
 # Restore model program to original state
 .PHONY: reset
 reset:
-	cp -af navsses_model/[^m]*.c navsses_model/*.h working_navsses_model/
+	git checkout -- navsses_model/
 
 # Verify the modified code generates the correct results
 .PHONY: verify
 verify:
-	@cp navsses_model/main.c navsses_model/Makefile working_navsses_model/
-	@$(MAKE) -s -C working_navsses_model verify
-	@$(MAKE) -s -C working_navsses_model clean
-	@rm -f working_navsses_model/main.c working_navsses_model/Makefile
+	@$(MAKE) -s -C navsses_model verify
+	@$(MAKE) -s -C navsses_model clean
 
 # Run static code analysis checks
 .PHONY: tidy
@@ -76,7 +74,7 @@ tidy:
 # Run the refactoring_tool program
 .PHONY: run
 run: $(addprefix $(BINDIR)/,$(EXECUTABLE))
-	$(EXECUTABLE) working_navsses_model/complete_system_io.c --
+	$(EXECUTABLE) navsses_model/complete_system_io.c --
 
 .PHONY: clean
 clean:

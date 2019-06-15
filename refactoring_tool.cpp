@@ -33,22 +33,11 @@ using clang::ast_matchers::hasSourceExpression;
 // Global variable is non static so that it can be externed into other translation units.
 bool print_debug_output = false;
 
-// <bool> Says that this option takes no argument, and is to be treated as a bool value only.
-// If this option is set, then the variable becomes true, otherwise it becomes false.
-opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
-
-
 int main(int argc, const char **argv)
 {
 	// Format should be:
 	// $ ./a.out tool_specific options -- clang_specific_options (not used)
 	// By default, input file(s) treated as a positional arguments of the tool-specific part of the options
-
-	// strncmp returns 0 if the strings match, and non-0 otherwise
-	if (argc < 3 || strncmp(argv[argc - 1], "--", 2) != 0) {
-	    errs() << "Usage:\n$ " << argv[0] << " <source files> --" << '\n';
-	    return -1;  // error code
-	}
 
 	/* Command line options description: */
 
@@ -62,6 +51,10 @@ int main(int argc, const char **argv)
 	// Parses the command line arguments for you.
 	// The third argument is a tool-specific options category.
 	CommonOptionsParser optionsParser(argc, argv, tool_category);
+
+	// <bool> Says that this option takes no argument, and is to be treated as a bool value only.
+	// If this option is set, then the variable becomes true, otherwise it becomes false.
+	opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
 
     // CommonOptionsParser optionsParser has to be constructed before DebugOutput can be used.
     // Internally, it calls cl::ParseCommandLineOptions, which sets the value of the DebugOutput
@@ -109,7 +102,7 @@ int main(int argc, const char **argv)
 	// Run the tool
 	auto result = tool.runAndSave(newFrontendActionFactory(&mf).get());
 
-	if( result ){
+	if( result != 0 ){
 		errs() << "Error removing memcpy(" << result << ")\n";
 		return result;
 	}

@@ -7,6 +7,7 @@
 #include <string>
 
 using std::exception;
+using std::runtime_error;
 using std::range_error;
 using std::invalid_argument;
 using std::string;
@@ -43,21 +44,6 @@ using clang::ast_matchers::MatchFinder;
 
 extern bool print_debug_output;  // defined in refactoring_tool.cpp
 
-
-// Static variables have to be defined and initialized outside of the class.
-// They have to be initialized in the *.cpp file, otherwise if they would be initialized in the *.h
-// header file, that header would be included into every *.cpp file, resulting in multiple
-// definitions of the same variable in the executable!
-unsigned int RemoveMemcpyMatchCallback::num_replacements  = 0;
-unsigned int RemoveMemcpyMatchCallback::num_matches_found = 0;
-
-RemoveMemcpyMatchCallback::~RemoveMemcpyMatchCallback()
-{
-        outs() << "Number of memcpy() matches found: " << num_matches_found << "\n";
-        outs() << "Number of memcpy() replacements: " << num_replacements << "\n";
-}
-
-
 void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
 {
     ++num_matches_found;
@@ -73,8 +59,8 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
     // (void) memcpy(dst, src, size) a common pattern.
     // First check that the result is a CStyleCastExpr, if so, then get the CallExpr out of it.
     // Else, then the result is CallExpr.
-    const CStyleCastExpr *cast_expr = result.Nodes.getNodeAs<CStyleCastExpr>("cast_memcpy_call");
-    if (cast_expr) {
+    const auto *cast_expr = result.Nodes.getNodeAs<CStyleCastExpr>("cast_memcpy_call");
+    if (cast_expr != nullptr) {
         // clang::CastExpr::getSubExpr() returns an Expr*
         // dynamic_cast it into a const CallExpr*
         // The sub expression of a cast expression is the expression that you're trying to cast.
@@ -86,7 +72,7 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
     }
 
     // if we succeeded getting a CallExpr out of the result.
-    if (call_expr) {
+    if (call_expr != nullptr) {
         string dst, src, size;  // strings are default constructed to ""
 
         // NOTE: Do not rearrange the order of these three chunks of code!
@@ -217,15 +203,14 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
             errs() << "ERROR: Error adding replacement that removes memcpy() call.\n";
             errs() << "\n\n";
             return;
-        } else {
-            if (print_debug_output) {
-                outputExpression(call_expr, outs(), loc_start);
-                outs() << "replaced with:\n" << replacement << '\n';
-                outs() << "\n\n";
-            }
-            // No error, increment the number of memcpy() replacements to print to the user.
-            ++num_replacements;
         }
+        if (print_debug_output) {
+            outputExpression(call_expr, outs(), loc_start);
+            outs() << "replaced with:\n" << replacement << '\n';
+            outs() << "\n\n";
+        }
+        // No error, increment the number of memcpy() replacements to print to the user.
+        ++num_replacements;
     }
 }
 
@@ -258,30 +243,36 @@ string RemoveMemcpyMatchCallback::getExprAsString(const Expr* expression) const
 
 APInt RemoveMemcpyMatchCallback::getVal(const Expr *expr) const
 {
+    APInt ret;
+
     // The expr is a sizeof() expression.
-    if ( const UnaryExprOrTypeTraitExpr *ttexp = dyn_cast<UnaryExprOrTypeTraitExpr>(expr) ) {
+    if ( const auto *ttexp = dyn_cast<UnaryExprOrTypeTraitExpr>(expr) ) {
         if (UETT_SizeOf == ttexp->getKind()) {
+
             // Before returning the APInt, we need to check that the sieof() type and the
             // original declaration type match.
             string this_data_type = ttexp->getTypeOfArgument().getAsString();
             // Distinguish if the type_string is empty as a separete error.
             if (type_string.empty()) {
-                throw string("ERROR: type_string is empty.");
+                throw runtime_error("ERROR: type_string is empty.");
+            }
             // If the data types don't match.
-            } else if (type_string != this_data_type) {
+            if (type_string != this_data_type) {
                 throw NonMatchingTypes(type_string, this_data_type);
             }
-
-            return APInt(32U, 1U, false);  // uint32_t, value is 1
         } else {
-            throw string("ERROR: Type trait not sizeof");
+            throw runtime_error("ERROR: Type trait not sizeof");
         }
+
+        ret = APInt(32U, 1U, false);  // uint32_t, value is 1
     // The expr is a simple integer literal.
-    } else if ( const IntegerLiteral *intexp = dyn_cast<IntegerLiteral>(expr) ) {
-          return intexp->getValue();
+    } else if ( const auto *intexp = dyn_cast<IntegerLiteral>(expr) ) {
+          ret = intexp->getValue();
     } else {
         throw invalid_argument("ERROR: Unable to determine size expression.");
     }
+
+    return ret;
 }
 
 
@@ -297,7 +288,7 @@ string RemoveMemcpyMatchCallback::getArgString(const Expr* expr, const string& v
     // The loop is read as while expr is not null.
     // This loop peels away outer layers of the AST, in order to get to the DeclRefExpr.
     // It stops when it gets to a DeclRefExpr, which represents the exact argument to memcpy().
-    while (expr) {
+    while (expr != nullptr) {
         // If the expression is the member of an object.
         // The MemberExpr is almost always the outside layer,
         // then the DeclRefExpr to the actual object is on the inside.
@@ -312,7 +303,7 @@ string RemoveMemcpyMatchCallback::getArgString(const Expr* expr, const string& v
         // If the expression is a reference to a declaration of a variable, array, or object.
         } else if ( auto varexp = dyn_cast<DeclRefExpr>(expr) ) {
             // Get the actual declaration of the variable, array, or object.
-            const ValueDecl *tmpdecl = dyn_cast<ValueDecl>(varexp->getDecl());
+            const auto *tmpdecl = dyn_cast<ValueDecl>(varexp->getDecl());
             // If valdecl != nullptr, it means that this pointer is pointing to the actual argument
             // to memcpy(), it was found in an outer layer, so we do not overwrite the valdecl.
             // This is the case if the actual argument to memcpy() is a member of an object.
@@ -325,7 +316,7 @@ string RemoveMemcpyMatchCallback::getArgString(const Expr* expr, const string& v
             // If arg_string was previously empty, then it is just set to tmpdecl->getNameAsString().
             // If arg_string previously contained the member of the object, .array then the object
             // itself gets prepended to the arg_string, so it becomes object.array
-            arg_string = tmpdecl->getNameAsString() + arg_string;
+            arg_string = tmpdecl->getNameAsString().append(arg_string);
             // We reached the innermost layer, which is a DeclRefExpr.
             // Break the loop.
             expr = nullptr;
@@ -344,7 +335,7 @@ string RemoveMemcpyMatchCallback::getArgString(const Expr* expr, const string& v
     }
 
     // If we failed to point valdecl to a vald ValueDecl for some reason.
-    if (!valdecl) {
+    if (valdecl == nullptr) {
         throw invalid_argument("ERROR: Member expression not a value declaration.");
     }
 
@@ -384,13 +375,15 @@ string RemoveMemcpyMatchCallback::getArgString(const Expr* expr, const string& v
 
 string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
 {
+    string ret;
+
     // Case 1: If the size is like something * something,
     // if there are two expressions and a binary operator combining them.
     //
     // A variable defined inside the condition of an if statement has scope only within that
     // if statement. The advantage of declaring it like this is that we can do initialization and
     // evaluation of the conditional statement practically in one step, it's an optimization.
-    if (const BinaryOperator *binop = dyn_cast<BinaryOperator>(expr)) {
+    if (const auto *binop = dyn_cast<BinaryOperator>(expr)) {
         string oper_string = binop->getOpcodeStr();
         // The only two supported operators are * and <<
         if (!(oper_string == "*" || oper_string == "<<")) {
@@ -410,10 +403,10 @@ string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
             APInt rhs_val = getVal(rhs);
             if (oper_string == "*") {
                 APInt result = lhs_val * rhs_val;
-                return result.toString(10, false); // Args are base = 10, signed = false
+                ret = result.toString(10, false); // Args are base = 10, signed = false
             } else if (oper_string == "<<") {
                 APInt result = lhs_val << rhs_val;
-                return result.toString(10, false); // Args are base = 10, signed = false
+                ret = result.toString(10, false); // Args are base = 10, signed = false
             // Other BinaryOperators are not yet supported.
             } else {
                 throw BadOperator("ERROR: Unrecognized BinaryOperator.");
@@ -424,21 +417,21 @@ string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
             // 0 << var == 0
             // 0 *  var == 0
             if (lhs_val == 0U) {
-                return "0";
+                ret = "0";
             } else if (lhs_val == 1U) {
                 // 1 * var == var
                 if (oper_string == "*") {
-                    return getExprAsString(rhs);
+                    ret = getExprAsString(rhs);
                 // 1 << var
                 } else if (oper_string == "<<") {
-                    return getExprAsString(binop);
+                    ret = getExprAsString(binop);
                 // Other BinaryOperators are not yet supported.
                 } else {
                     throw BadOperator("ERROR: Unrecognized BinaryOperator.");
                 }
             // For any other literal OP variable
             } else {
-                return getExprAsString(binop);
+                ret = getExprAsString(binop);
             }
         // variable OP literal
         } else if (!lhs_literal && rhs_literal) {
@@ -446,10 +439,10 @@ string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
             if (rhs_val == 0U) {
                 // var * 0 == 0
                 if (oper_string == "*") {
-                    return "0";
+                    ret = "0";
                 // var << 0 == var
                 } else if (oper_string == "<<") {
-                    return getExprAsString(lhs);
+                    ret = getExprAsString(lhs);
                 // Other BinaryOperators are not yet supported.
                 } else {
                     throw BadOperator("ERROR: Unrecognized BinaryOperator.");
@@ -457,17 +450,17 @@ string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
             } else if (rhs_val == 1U) {
                 // var * 1 == var
                 if (oper_string == "*") {
-                    return getExprAsString(lhs);
+                    ret = getExprAsString(lhs);
                 // var << 1
                 } else if (oper_string == "<<") {
-                    return getExprAsString(binop);
+                    ret = getExprAsString(binop);
                 // Other BinaryOperators are not yet supported.
                 } else {
                     throw BadOperator("ERROR: Unrecognized BinaryOperator.");
                 }
             // For any other variable OP literal
             } else {
-                return getExprAsString(binop);
+                ret = getExprAsString(binop);
             }
         // variable OP variable
         } else if (!lhs_literal && !rhs_literal) {
@@ -478,45 +471,46 @@ string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
             // is a sizeof() expression.
             string size_string = "(" + getExprAsString(binop) + ")";
             size_string.append(" / sizeof(" + type_string + ")");
-            return size_string;
+            ret = size_string;
         }
 
     // Case 2: If the size is single variable.
-    } else if ( const DeclRefExpr *varexp = dyn_cast<DeclRefExpr>(expr) ) {
+    } else if ( const auto *varexp = dyn_cast<DeclRefExpr>(expr) ) {
         // Get the variable itself.
-        const ValueDecl *vardecl = dyn_cast<ValueDecl>(varexp->getDecl());
-        if (vardecl) {
+        const auto *vardecl = dyn_cast<ValueDecl>(varexp->getDecl());
+        if (vardecl != nullptr) {
             if (type_string.empty()) {
-                throw string("ERROR: Data type of elements is not determined!");
+                throw runtime_error("ERROR: Data type of elements is not determined!");
             }
             // The third operand to memcpy() is the number of bytes, so if it's a single
             // variable, we have to divide that number of bytes by the sizeof(element).
             string size_string = vardecl->getNameAsString() + " / sizeof(" + type_string + ")";
-            return size_string;
+            ret = size_string;
         } else {
             throw invalid_argument("ERROR: DeclRefExpr without ValueDecl");
         }
     // Case 3: If the size is a sizeof() expression, always return "1".
-    } else if ( const UnaryExprOrTypeTraitExpr *ttexp = dyn_cast<UnaryExprOrTypeTraitExpr>(expr) ) {
+    } else if ( const auto *ttexp = dyn_cast<UnaryExprOrTypeTraitExpr>(expr) ) {
         if (UETT_SizeOf == ttexp->getKind()) {
             // Check that the sizeof() type and original declaration type match.
             string this_data_type = ttexp->getTypeOfArgument().getAsString();
             // Distinguish if the type_string is empty as a separete error.
             if (type_string.empty()) {
-                throw string("ERROR: type_string is empty.");
+                throw runtime_error("ERROR: type_string is empty.");
             // If the data types don't match.
-            } else if (type_string != this_data_type) {
+            }
+            if (type_string != this_data_type) {
                 throw NonMatchingTypes(type_string, this_data_type);
             }
 
-            return string("1");
+            ret = string("1");
         } else {
-            throw string("ERROR: Type trait not sizeof");
+            throw runtime_error("ERROR: Type trait not sizeof");
         }
     // Case 4: The size is a simple integer literal.
-    } else if ( const IntegerLiteral *intexp = dyn_cast<IntegerLiteral>(expr) ) {
+    } else if ( const auto *intexp = dyn_cast<IntegerLiteral>(expr) ) {
         if (type_string.empty()) {
-            throw string("ERROR: Data type of elements is not determined!");
+            throw runtime_error("ERROR: Data type of elements is not determined!");
         }
         // The third operand to memcpy() is the number of bytes, so if it's an IntegerLiteral,
         // it should be divided by sizeof(element).
@@ -525,11 +519,13 @@ string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
         string result_string = result.toString(10, false); // Args are base = 10, signed = false
         // operator +=() is an inline function, which internally calls append().
         result_string.append(" / sizeof(" + type_string + ")");
-        return result_string;
+        ret = result_string;
     // Default: Something else which is an error.
     } else {
         throw invalid_argument("ERROR: Unable to determine size expression.");
     }
+
+    return ret;
 
     // The llvm_unreachable function can be used to document areas of control flow that
     // should never be entered if the program invariants hold:

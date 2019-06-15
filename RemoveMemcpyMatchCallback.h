@@ -40,17 +40,8 @@ class RemoveMemcpyMatchCallback : public MatchFinder::MatchCallback
      *                                    actually perform the source code replacements in the
      *                                    refactoring process.
      */
-    RemoveMemcpyMatchCallback(map<string, Replacements> * replacements)
-		: replacements(replacements), SM(nullptr), type_string() {}
-
-    /**
-     * The destructor gets called when the Call Back object gets destroyed,
-     * when all the replacements have either been applied successfully or failed.
-     * If print_debug_output is set to true, it prints the number of matches found and the number
-     * of successful memcpy() replacements. If the program successfully replaced all occurances
-     * of memcpy(), then these two printed numbers will be equal.
-     */
-    ~RemoveMemcpyMatchCallback();
+    explicit RemoveMemcpyMatchCallback(map<string, Replacements> * replacements)
+		: replacements(replacements), SM(nullptr) {}
 
     /**
      * Callback method for the MatchFinder, this function gets called whenever a matching
@@ -69,7 +60,17 @@ class RemoveMemcpyMatchCallback : public MatchFinder::MatchCallback
      *
 	 * @param const MatchFinder::MatchResult result - Found matching results.
 	 */
-	virtual void run(const MatchFinder::MatchResult& result);
+	void run(const MatchFinder::MatchResult& result) override;
+
+	/**
+	 * Returns the number of successful memcpy() replacements.
+	 */
+	unsigned int getNumReplacements() const {return num_replacements;}
+
+    /**
+	 * Returns the number of matches found, the number of times run() function got called.
+	 */
+	unsigned int getNumMatchesFound() const {return num_matches_found;}
 
   private:
     /* Private helper functions. */
@@ -208,9 +209,9 @@ class RemoveMemcpyMatchCallback : public MatchFinder::MatchCallback
     // Used for checking if the data types of the arguments match.
     string type_string;
     // The number of successful memcpy() replacements.
-    static unsigned int num_replacements;
+    unsigned int num_replacements{0};
     // The number of matches found, the number of times run() function got called.
-    static unsigned int num_matches_found;
+    unsigned int num_matches_found{0};
 	// Add other variables here as needed.
 };
 

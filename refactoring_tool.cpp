@@ -114,6 +114,8 @@ int main(int argc, const char **argv)
 		return result;
 	}
 
+	outs() << "Found " << remove_memcpy_match_callback.getNumMatchesFound() << " memcpy() matches found\n";
+	outs() << "Performed " << remove_memcpy_match_callback.getNumReplacements() << " memcpy() replacements\n";
 	outs() << "Found " << make_static_match_callback.num_free_calls() << " calls to free()\n";
 	outs() << "Found " << make_static_match_callback.num_calloc_calls() << " calls to calloc()\n";
 

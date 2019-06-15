@@ -31,9 +31,9 @@ using std::string;
 
 class BadOperator : public exception {
   public:
-    BadOperator(const char* reason) : exception(), reason(reason) {}
+    explicit BadOperator(const char* reason) : reason(reason) {}
 
-    const char* what() const throw()
+    const char* what() const noexcept override
     {
         return reason;
     }
@@ -44,12 +44,11 @@ class BadOperator : public exception {
 
 class NonMatchingTypes : public exception {
   public:
-    NonMatchingTypes(const string& data_type1, const string& data_type2)
-    : exception(), reason() {
+    NonMatchingTypes(const string& data_type1, const string& data_type2) {
         reason = "ERROR: Data types don't match: " + data_type1 + " and " + data_type2;
     }
 
-    const char* what() const throw()
+    const char* what() const noexcept override
     {
         return reason.c_str();
     }

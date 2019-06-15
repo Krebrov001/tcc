@@ -6,7 +6,9 @@
 #      LLVM recommended header guards not appropriate for the project
 # -- google-global-names-in-headers:
 #      Coarsely implemented check that flags common 'using std::map' statements.
-Checks:          'clang-diagnostic-*,clang-analyzer-*,*,-fuchsia*,-objc*,-android*,-mpi*,-llvm-header-guard,-google-global-names-in-headers'
+# -- google-readability-todo:
+#      TODO tasks are not tracked per user as Google recommends
+Checks:          'clang-diagnostic-*,clang-analyzer-*,*,-fuchsia*,-objc*,-android*,-mpi*,-llvm-header-guard,-google-global-names-in-headers,-google-readability-todo'
 WarningsAsErrors: ''
 HeaderFilterRegex: '.*'
 AnalyzeTemporaryDtors: false

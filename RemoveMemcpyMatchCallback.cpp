@@ -526,15 +526,4 @@ string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
     }
 
     return ret;
-
-    // The llvm_unreachable function can be used to document areas of control flow that
-    // should never be entered if the program invariants hold:
-    // In this case expr has to go into one of the above if () {} statements or it will
-    // go into the else {}.
-    // Marks that the current location is not supposed to be reachable.
-    // Use this instead of assert(0). It conveys intent more clearly and allows compilers
-    // to omit some unnecessary code.
-    // This gets rid of the warning.
-    // warning: control may reach end of non-void function [-Wreturn-type]
-    llvm_unreachable("expr should be one of the above expressions.");
 }

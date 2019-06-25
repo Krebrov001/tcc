@@ -6,6 +6,7 @@
 #include "llvm/ADT/APInt.h"
 
 #include <string>
+#include <map>
 
 using std::string;
 using std::map;
@@ -198,7 +199,7 @@ class RemoveMemcpyMatchCallback : public MatchFinder::MatchCallback
      */
     string getSizeString(const Expr *expr) const;
 
-    /* Private member variables and private static variables. */
+    /* Private member variables. */
 
     map<string, Replacements>* replacements;
     // This class handles loading and caching of source files into memory.

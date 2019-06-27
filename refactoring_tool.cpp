@@ -96,6 +96,7 @@ int main(int argc, const char **argv)
 
     if (print_debug_output) {
 	    outs() << "Starting match finder\n";
+        outs() << "\n\n";
     }
 
 	MatchFinder mf;
@@ -174,6 +175,7 @@ int main(int argc, const char **argv)
         if (RunRemovePointer) {
             outs() << "Removed " << remove_pointer_match_callback.getNumGlobalPointerRemovals() << " global pointers.\n";
             outs() << "Replaced " << remove_pointer_match_callback.getNumPointerUseReplacements() << " pointer uses.\n";
+            outs() << "Replaced " << remove_pointer_match_callback.getNumPointerDereferenceReplacements() << " pointer dereferences.\n";
         }
     }
 

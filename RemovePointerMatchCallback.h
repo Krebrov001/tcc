@@ -4,6 +4,8 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Core/Replacement.h"
 
+#include <cstring>
+
 #include <string>
 #include <map>
 
@@ -14,6 +16,7 @@ using llvm::raw_ostream;
 
 using clang::Expr;
 using clang::Decl;
+using clang::MemberExpr;
 using clang::SourceManager;
 using clang::SourceLocation;
 using clang::tooling::Replacements;
@@ -47,12 +50,17 @@ class RemovePointerMatchCallback : public MatchFinder::MatchCallback
 	 */
 	unsigned int getNumPointerUseReplacements() const { return num_pointer_uses; }
 
+    /**
+	 * Returns the number of successful pointer dereference replacements.
+	 */
+	unsigned int getNumPointerDereferenceReplacements() const { return num_pointer_dereferences; }
+
   private:
     void replace_global_pointer(const Decl* decl);
 
-    void replace_pointer_use(const Expr* decl);
+    void replace_pointer_use(const Expr* expr);
 
-    void replace_pointer_dereference(const Expr* decl);
+    void replace_pointer_dereference(const MemberExpr* expr);
 
     /**
      * This function prints the full expression, the filename where this expression originated,
@@ -123,6 +131,7 @@ class RemovePointerMatchCallback : public MatchFinder::MatchCallback
     SourceManager* SM;
     unsigned int num_global_pointers{0};
     unsigned int num_pointer_uses{0};
+    unsigned int num_pointer_dereferences{0};
 	// Add other variables here as needed.
 };
 

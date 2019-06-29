@@ -41,7 +41,6 @@ using clang::ast_matchers::hasType;
 using clang::ast_matchers::isArrow;
 using clang::ast_matchers::memberExpr;
 using clang::ast_matchers::isExpansionInMainFile;
-using clang::ast_matchers::declRefExpr;
 using clang::ast_matchers::namedDecl;
 
 // Global variable is non static so that it can be externed into other translation units.
@@ -107,51 +106,19 @@ int main(int argc, const char **argv)
 	// Make the RemoveMemcpyMatchCallback class be able to recieve the match results.
 	RemoveMemcpyMatchCallback remove_memcpy_match_callback(&tool.getReplacements());
     if (RunRemoveMemcpy) {
-	    // match all instances of:
-        // (void) memcpy(/* ... */);
-	    StatementMatcher cast_memcpy_matcher = cStyleCastExpr(hasSourceExpression(callExpr(callee(functionDecl(hasName("memcpy")))))).bind("cast_memcpy_call");
-        // match all instances of:
-        // memcpy(/* ... */);
-	    StatementMatcher memcpy_matcher = callExpr(callee(functionDecl(hasName("memcpy"))), unless(hasAncestor(cStyleCastExpr()))).bind("memcpy_call");
-	    mf.addMatcher(memcpy_matcher, &remove_memcpy_match_callback);
-	    mf.addMatcher(cast_memcpy_matcher, &remove_memcpy_match_callback);
+	    remove_memcpy_match_callback.getASTmatchers(mf);
     }
 
 	//// Make static details
 	MakeStaticMatchCallback make_static_match_callback(&tool.getReplacements());
     if (RunMakeStatic) {
-	    StatementMatcher free_call_matcher = callExpr(callee(functionDecl(hasName("free")))).bind("free_call");
-	    StatementMatcher calloc_assign_matcher = binaryOperator(hasOperatorName("="),
-		hasRHS(ignoringParenImpCasts((has(callExpr(callee(functionDecl(hasName("calloc"))))))))).bind("calloc_assign");
-	    mf.addMatcher(free_call_matcher, &make_static_match_callback);
-	    mf.addMatcher(calloc_assign_matcher, &make_static_match_callback);
+	    make_static_match_callback.getASTmatchers(mf);
     }
 
     //// Remove pointer details
     RemovePointerMatchCallback remove_pointer_match_callback(&tool.getReplacements());
     if (RunRemovePointer) {
-        StatementMatcher pointer_dereference_matcher = memberExpr(
-            isArrow(),
-            hasDescendant(declRefExpr( to(namedDecl(hasName("complete_system_io_M"))) ))
-        ).bind("pointer_dereference");
-
-        StatementMatcher pointer_use_matcher = declRefExpr(to(varDecl(
-           hasGlobalStorage(),
-           hasType(pointerType()),
-           hasName("complete_system_io_M")
-        )), unless(hasAncestor( memberExpr(isArrow()) ))
-        ).bind("pointer_use");
-
-        DeclarationMatcher global_pointer_matcher = varDecl(
-            hasGlobalStorage(),
-            hasType(pointerType()),
-            isExpansionInMainFile(),
-            hasName("complete_system_io_M")
-        ).bind("global_pointer");
-
-        mf.addMatcher(pointer_use_matcher, &remove_pointer_match_callback);
-        mf.addMatcher(pointer_dereference_matcher, &remove_pointer_match_callback);
-        mf.addMatcher(global_pointer_matcher, &remove_pointer_match_callback);
+        remove_pointer_match_callback.getASTmatchers(mf);
     }
 
 	// Run the tool
@@ -164,19 +131,38 @@ int main(int argc, const char **argv)
 
     // Print diagnostic output.
     if (print_debug_output) {
+        unsigned int num_refactorings = 0;
+
         if (RunRemoveMemcpy) {
-	        outs() << "Found " << remove_memcpy_match_callback.getNumMatchesFound() << " memcpy() matches found\n";
-	        outs() << "Performed " << remove_memcpy_match_callback.getNumReplacements() << " memcpy() replacements\n";
+            unsigned int num_matches_found = remove_memcpy_match_callback.getNumMatchesFound();
+            unsigned int num_replacements = remove_memcpy_match_callback.getNumReplacements();
+            num_refactorings += num_replacements;
+	        outs() << "Found " << num_matches_found << " memcpy() matches found\n";
+	        outs() << "Performed " << num_replacements << " memcpy() replacements\n";
         }
+
         if (RunMakeStatic) {
-            outs() << "Found " << make_static_match_callback.num_free_calls() << " calls to free()\n";
-	        outs() << "Found " << make_static_match_callback.num_calloc_calls() << " calls to calloc()\n";
+            unsigned int num_free_calls = make_static_match_callback.num_free_calls();
+            unsigned int num_calloc_calls = make_static_match_callback.num_calloc_calls();
+            num_refactorings += num_free_calls;
+            num_refactorings += num_calloc_calls;
+            outs() << "Found " << num_free_calls << " calls to free()\n";
+	        outs() << "Found " << num_free_calls << " calls to calloc()\n";
         }
+
         if (RunRemovePointer) {
-            outs() << "Removed " << remove_pointer_match_callback.getNumGlobalPointerRemovals() << " global pointers.\n";
-            outs() << "Replaced " << remove_pointer_match_callback.getNumPointerUseReplacements() << " pointer uses.\n";
-            outs() << "Replaced " << remove_pointer_match_callback.getNumPointerDereferenceReplacements() << " pointer dereferences.\n";
+            unsigned int num_global_pointers = remove_pointer_match_callback.getNumGlobalPointerRemovals();
+            unsigned int num_pointer_uses = remove_pointer_match_callback.getNumPointerUseReplacements();
+            unsigned int num_pointer_dereferences = remove_pointer_match_callback.getNumPointerDereferenceReplacements();
+            num_refactorings += num_global_pointers;
+            num_refactorings += num_pointer_uses;
+            num_refactorings += num_pointer_dereferences;
+            outs() << "Removed " << num_global_pointers << " global pointers.\n";
+            outs() << "Replaced " << num_pointer_uses << " pointer uses.\n";
+            outs() << "Replaced " << num_pointer_dereferences << " pointer dereferences.\n";
         }
+
+        outs() << '\n' << "Performed " << num_refactorings << " total refactorings\n";
     }
 
 	return 0;

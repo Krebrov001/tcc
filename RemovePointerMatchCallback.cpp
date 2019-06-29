@@ -5,8 +5,29 @@
 
 using llvm::outs;
 using llvm::errs;
+using llvm::raw_ostream;
 using llvm::Error;
 using llvm::StringRef;
+
+using clang::tooling::Replacement;
+using clang::ast_matchers::MatchFinder;
+using clang::ast_matchers::StatementMatcher;
+using clang::ast_matchers::DeclarationMatcher;
+
+using clang::ast_matchers::declRefExpr;
+using clang::ast_matchers::varDecl;
+using clang::ast_matchers::namedDecl;
+using clang::ast_matchers::memberExpr;
+using clang::ast_matchers::pointerType;
+using clang::ast_matchers::hasGlobalStorage;
+using clang::ast_matchers::hasType;
+using clang::ast_matchers::hasName;
+using clang::ast_matchers::hasAncestor;
+using clang::ast_matchers::hasDescendant;
+using clang::ast_matchers::isArrow;
+using clang::ast_matchers::isExpansionInMainFile;
+using clang::ast_matchers::to;
+using clang::ast_matchers::unless;
 
 using clang::dyn_cast;
 using clang::isa;
@@ -27,52 +48,87 @@ using clang::SourceLocation;
 using clang::SourceRange;
 using clang::CharSourceRange;
 using clang::Lexer;
+
 using clang::tok::semi;
 using clang::tok::l_paren;
 using clang::tok::r_paren;
 using clang::tok::l_brace;
 using clang::tok::greater;
-using clang::tooling::Replacement;
 
 extern bool print_debug_output;  // defined in refactoring_tool.cpp
+
+void RemovePointerMatchCallback::getASTmatchers(MatchFinder& mf) const
+{
+    StatementMatcher pointer_dereference_matcher = memberExpr(
+        isArrow(),
+        hasDescendant(declRefExpr( to(namedDecl(hasName("complete_system_io_M"))) ))
+    ).bind("pointer_dereference");
+
+    StatementMatcher pointer_use_matcher = declRefExpr(to(varDecl(
+       hasGlobalStorage(),
+       hasType(pointerType()),
+       hasName("complete_system_io_M")
+    )), unless(hasAncestor( memberExpr(isArrow()) ))
+    ).bind("pointer_use");
+
+    DeclarationMatcher global_pointer_matcher = varDecl(
+        hasGlobalStorage(),
+        hasType(pointerType()),
+        isExpansionInMainFile(),
+        hasName("complete_system_io_M")
+    ).bind("global_pointer");
+
+    // &remove_pointer_match_callback, is the address of the calling object == this
+    // The second argument should be of type (MatchFinder::MatchCallback *)
+    mf.addMatcher(pointer_use_matcher, (MatchFinder::MatchCallback *) this);
+    mf.addMatcher(pointer_dereference_matcher, (MatchFinder::MatchCallback *) this);
+    mf.addMatcher(global_pointer_matcher, (MatchFinder::MatchCallback *) this);
+}
+
 
 void RemovePointerMatchCallback::run(const MatchFinder::MatchResult& result)
 {
     SM = result.SourceManager;
-    // Since this SourceLocation is used multiple times in below code, bring it up.
-    SourceLocation loc_start;
 
     if (const auto *decl = result.Nodes.getNodeAs<Decl>("global_pointer")) {
-        replace_global_pointer(decl);
-        /*
-        outs() << "global_pointer" << '\n';
-        decl->dump();
-        loc_start = decl->getLocStart();
-        outputDeclaration(decl, outs(), loc_start);
-        outs() << "\n\n";
-        */
+        remove_global_pointer(decl);
     } else if (const auto *expr = result.Nodes.getNodeAs<MemberExpr>("pointer_dereference")) {
-        replace_pointer_dereference(expr);
-        // TODO, or HINT: Use tok::greater to get the '>'
-        /*
-        outs() << "pointer_dereference" << '\n';
-        expr->dump();
-        loc_start = expr->getLocStart();
-        outputExpression(expr, outs(), loc_start);
-        outs() << "\n\n";
-        */
+        replace_pointer_arrow(expr);
     } else if (const auto *expr = result.Nodes.getNodeAs<Expr>("pointer_use")) {
         replace_pointer_use(expr);
-        /*
-        outs() << "pointer_use" << '\n';
-        expr->dump();
-        loc_start = expr->getLocStart();
-        outputExpression(expr, outs(), loc_start);
-        outs() << "\n\n";
-        */
     }
+}
 
-    //decl->dump();
+
+void RemovePointerMatchCallback::remove_global_pointer(const Decl* decl)
+{
+    string replacement = "";
+
+    SourceLocation loc_start = decl->getLocStart();
+    // Get the location after the semicolon following the declaration of complete_system_io_M.
+    SourceLocation after_semi_loc = Lexer::findLocationAfterToken(decl->getLocEnd(), semi, *SM, LangOptions(), false);
+    if (!after_semi_loc.isValid()) {
+        outputDeclaration(decl, errs(), loc_start);
+        errs() << "ERROR: Unable to find source location of the declaration of complete_system_io_M.\n";
+        errs() << "\n\n";
+        return;
+    }
+    CharSourceRange range = CharSourceRange::getTokenRange(loc_start, after_semi_loc);
+    Replacement global_pointer_rep(*SM, range, replacement);
+
+    if (Error err = (*replacements)[global_pointer_rep.getFilePath()].add(global_pointer_rep)) {
+        outputDeclaration(decl, errs(), loc_start);
+        errs() << "ERROR: Error adding replacement that removes the declaration of complete_system_io_M.\n";
+        errs() << "\n\n";
+        return;
+    }
+    if (print_debug_output) {
+        outputDeclaration(decl, outs(), loc_start);
+        outs() << "replaced with:\n" << replacement << '\n';
+        outs() << "\n\n";
+    }
+    // No error, increment the number of global pointer removals to print to the user.
+    ++num_global_pointers;
 }
 
 
@@ -141,19 +197,19 @@ void RemovePointerMatchCallback::replace_pointer_use(const Expr* expr)
 }
 
 
-void RemovePointerMatchCallback::replace_pointer_dereference(const MemberExpr* expr)
+void RemovePointerMatchCallback::replace_pointer_arrow(const MemberExpr* expr)
 {
     #define DESIRED_TYPE "RT_MODEL_complete_system_io_T"
-    #define INVALID_BUFFER "<<<<INVALID BUFFER>>>>"
-    #define KGRN  "\x1B[32m"
-    #define KCYN  "\x1B[36m"
-    #define KWHT  "\x1B[37m"
 
+    // The base expression of the member expression is the calling object,
+    // in this case baseExp->something.
     const auto* baseExp = expr->getBase();
     SourceLocation loc_start = baseExp->getLocStart();
 
+    // Get the type of the base expression, a pointer type.
     const QualType qualtype = baseExp->getType();
     const PointerType* type = dyn_cast<PointerType>(qualtype.getTypePtr());
+    // Get the type to which that pointer points to.
     const QualType pointeeType = type->getPointeeType();
     string type_string = pointeeType.getAsString();
 
@@ -207,286 +263,208 @@ void RemovePointerMatchCallback::replace_pointer_dereference(const MemberExpr* e
             // If the loc1 is not valid, then we have an arrow expression inside a macro call:
             // complete_system_io_M->Timing
             if (!loc1.isValid()) {
-                // This DeclRefExpr is the pointer variable which is used,
-                // complete_system_io_M
-                const DeclRefExpr *varexpr = dyn_cast<DeclRefExpr>(baseExp->IgnoreParenImpCasts());
-
-                // The SourceLocation startLoc, and it's char* representation, start, both point
-                // to the first character in the expression.
-                // complete_system_io_M->Timing
-                // ^
-                SourceLocation startLoc = varexpr->getLocStart();
-                const char* start = SM->getCharacterData(startLoc);
-
-                /* We need to get the text to replace:
-                 * complete_system_io_M->
-                 * This loop goes from the starting position and increments the pointer until it
-                 * reaches the '-' character which marks the end of the token.
-                 * When this loop ends, the pointer start will be pointing to that exact character.
-                 * complete_system_io_M->
-                 *                     ^
-                 *
-                 * unsigned int num_chars counts how many characters away the '-' is from the
-                 * original startLoc, how many characters in the text to replace.
-                 */
-                unsigned int num_chars = 0;
-                while (*start != '-') {
-                    ++num_chars;
-                    ++start;
-                }
-                // endLoc saves as a Sourcelocation, the position where to stop the replacement
-                // character range.
-                // complete_system_io_M->
-                //                      ^
-                // The replacement character range now includes the name of the pointer and
-                // the -> operator.
-                SourceLocation endLoc = startLoc.getLocWithOffset(num_chars + 1);
-                CharSourceRange range = CharSourceRange::getTokenRange(startLoc, endLoc);
-
-                string replacement;
-                // These are temporary expressions that are only needed to compute the replacement string.
-                // They are put in {} here, artificially scope delimited because after this point
-                // we don't need them any more.
-                {
-                    // Get the actual declaration of the global pointer.
-                    const VarDecl *vardecl = dyn_cast<VarDecl>(varexpr->getDecl());
-                    // Get the right hand side of the operator =, which is &complete_system_io_M_
-                    const UnaryOperator *init = dyn_cast<UnaryOperator>(vardecl->getInit());
-                    // Get the global struct, which is complete_system_io_M_
-                    const auto *global_struct = init->getSubExpr();
-                    replacement += getExprAsString(global_struct);
-                    replacement.push_back('.');
-                }
-
-                /* Performing the actual replacement, replacing the source code text. */
-
-                Replacement pointer_dereference_macro_rep(*SM, range, replacement);
-                if (Error err = (*replacements)[pointer_dereference_macro_rep.getFilePath()].add(pointer_dereference_macro_rep)) {
-                    errs() << string(SM->getCharacterData(startLoc), num_chars + 2) << '\n';
-                    errs() << "ERROR: Error adding replacement that replaces the pointer dereference arrow expression.\n";
-                    errs() << "\n\n";
-                    return;
-                }
-                if (print_debug_output) {
-                    outs() << string(SM->getCharacterData(startLoc), num_chars + 2) << '\n';
-                    outs() << "replaced with:\n" << replacement << '\n';
-                    outs() << "\n\n";
-                }
-                ++num_pointer_dereferences;
-                return;
+                replace_pointer_dereference(baseExp);
 
             // If the loc1 is valid, then we have the expression as an argument to the macro call,
             // rtmIsMajorTimeStep(complete_system_io_M)
             //                    ^
             } else {
-                // const char* start is a pointer to the character at that location of the '('.
-                // So if we have:
-                // rtmIsMajorTimeStep(complete_system_io_M)
-                //                    ^
-                // it points to the 'c'.
-                const char* start = SM->getCharacterData(loc1);
-                /* We need to get the text between the '(' and ')', the text to replace:
-                 * complete_system_io_M
-                 * This loop goes from the starting position and increments the pointer until it
-                 * reaches a delimiting character which marks the end of the token.
-                 * When this loop ends, the pointer start will be pointing to that exact character.
-                 * rtmIsMajorTimeStep(complete_system_io_M)
-                 *                                        ^
-                 * The ',' can also be a such delimiter:
-                 * rtmSetTPtr(complete_system_io_M,
-                 *                                ^
-                 *
-                 * unsigned int num_chars counts how many characters away is that delimiter char
-                 * from the '(', how many characters is the text to replace.
-                 */
-                unsigned int num_chars = 0;
-                while (*start != ')' && *start != ',') {
-                    ++num_chars;
-                    ++start;
-                }
-                // (start + num_chars) points to the delimiter character.
-                // (start + num_chars - 1) points to the char preceding the delimiter character,
-                // not including the delimiter character.
-                // loc2 now is a SourceLocation that points to (num_chars - 1) away from the '('
-                SourceLocation loc2 = loc1.getLocWithOffset(num_chars - 1);
-                //SourceLocation loc2 = Lexer::findLocationAfterToken(loc_end, r_paren, *SM, LangOptions(), false);
-
-                /* Calculating the string replacement. */
-
-                string replacement = "&";
-                // Go past the parenthesis and implicit casts to get the DeclRefExpr.
-                // This is the complete_system_io_M
-                const DeclRefExpr *varexpr = dyn_cast<DeclRefExpr>(baseExp->IgnoreParenImpCasts());
-                // These are temporary expressions that are only needed to compute the replacement string.
-                // They are put in {} here, artificially scope delimited because after this point
-                // we don't need them any more.
-                {
-                    // Get the actual declaration of the global pointer.
-                    const VarDecl *vardecl = dyn_cast<VarDecl>(varexpr->getDecl());
-                    // Get the right hand side of the operator =, which is &complete_system_io_M_
-                    const UnaryOperator *init = dyn_cast<UnaryOperator>(vardecl->getInit());
-                    // Get the global struct, which is complete_system_io_M_
-                    const auto *global_struct = init->getSubExpr();
-                    replacement += getExprAsString(global_struct);
-                }
-
-                // Get the range of characters to be replaced, between '(' and the delimiter char,
-                // either ')' or ','
-                // Not including the delimiter character.
-                // We do not want to replace the delimiter character.
-                CharSourceRange range = CharSourceRange::getTokenRange(loc1, loc2);
-
-                /* Performing the actual replacement, replacing the source code text. */
-
-                Replacement pointer_use_macro_rep(*SM, range, replacement);
-                if (Error err = (*replacements)[pointer_use_macro_rep.getFilePath()].add(pointer_use_macro_rep)) {
-                    outputExpression(varexpr, errs(), varexpr->getLocStart());
-                    errs() << "ERROR: Error adding replacement that replaces the pointer use with address of structure.\n";
-                    errs() << "\n\n";
-                    return;
-                }
-                if (print_debug_output) {
-                    //outputExpression(baseExp, outs(), loc_start);
-                    //outs() << '(';
-                    outputExpression(varexpr, outs(), varexpr->getLocStart());
-                    outs() << "replaced with:\n" << replacement << '\n';
-                    outs() << "\n\n";
-                }
-
-                // Even though this is technically a pointer dereference,
-                // I'm treating it as a pointer use:
-                // rtmIsMajorTimeStep(complete_system_io_M)
-                // And the replacement that is prerformed in this situation is similar to the
-                // replacement that is performed for a typical pointer use.
-                ++num_pointer_uses;
-                return;
+                replace_pointer_use_macro(baseExp, loc1);
             }
 
         } else {
-            LangOptions langopt;
-            // This DeclRefExpr is the pointer variable which is used,
-            // complete_system_io_M
-            const DeclRefExpr *varexpr = dyn_cast<DeclRefExpr>(baseExp->IgnoreParenImpCasts());
-            // The SourceLocation startLoc, and it's char* representation, start, both point
-            // to the first character in the expression.
-            // complete_system_io_M->Timing
-            // ^
-            SourceLocation startLoc = varexpr->getLocStart();
-            const char* start = SM->getCharacterData(startLoc);
-
-            /* We need to get the text to replace:
-             * complete_system_io_M->
-             * This loop goes from the starting position and increments the pointer until it
-             * reaches the '-' character which marks the end of the token.
-             * When this loop ends, the pointer start will be pointing to that exact character.
-             * complete_system_io_M->
-             *                     ^
-             *
-             * unsigned int num_chars counts how many characters away the '-' is from the
-             * original startLoc, how many characters in the text to replace.
-             */
-            unsigned int num_chars = 0;
-            while (*start != '-') {
-                ++num_chars;
-                ++start;
-            }
-            // endLoc saves as a Sourcelocation, the position where to stop the replacement
-            // character range.
-            // complete_system_io_M->
-            //                      ^
-            // The replacement character range now includes the name of the pointer and
-            // the -> operator.
-            SourceLocation endLoc = startLoc.getLocWithOffset(num_chars + 1);
-            CharSourceRange range = CharSourceRange::getTokenRange(startLoc, endLoc);
-
-            string replacement;
-            // These are temporary expressions that are only needed to compute the replacement string.
-            // They are put in {} here, artificially scope delimited because after this point
-            // we don't need them any more.
-            {
-                // Get the actual declaration of the global pointer.
-                const VarDecl *vardecl = dyn_cast<VarDecl>(varexpr->getDecl());
-                // Get the right hand side of the operator =, which is &complete_system_io_M_
-                const UnaryOperator *init = dyn_cast<UnaryOperator>(vardecl->getInit());
-                // Get the global struct, which is complete_system_io_M_
-                const auto *global_struct = init->getSubExpr();
-                replacement += getExprAsString(global_struct);
-                replacement.push_back('.');
-            }
-
-            /*
-            outs() << KGRN;
-            //outs() << string(SM->getCharacterData(startLoc), SM->getCharacterData(after_arrow) - SM->getCharacterData(startLoc));
-            outputExpression(varexpr, outs(), varexpr->getLocStart());
-            outs() << KWHT;
-            expr->dump();
-            outs() << "=======================================\n";
-            outs() << KCYN;
-            varexpr->dump();
-            outs() << KWHT;
-            //outs() << "\n\n";
-            */
-
-            /* Performing the actual replacement, replacing the source code text. */
-
-            Replacement pointer_dereference_rep(*SM, range, replacement);
-            if (Error err = (*replacements)[pointer_dereference_rep.getFilePath()].add(pointer_dereference_rep)) {
-                errs() << string(SM->getCharacterData(startLoc), num_chars + 2) << '\n';
-                errs() << "ERROR: Error adding replacement that replaces the pointer dereference arrow expression.\n";
-                errs() << "\n\n";
-                return;
-            }
-            if (print_debug_output) {
-                outs() << string(SM->getCharacterData(startLoc), num_chars + 2) << '\n';
-                outs() << "replaced with:\n" << replacement << '\n';
-                outs() << "\n\n";
-            }
-            ++num_pointer_dereferences;
-            return;
-
+            replace_pointer_dereference(baseExp);
         }
     }
 }
 
 
-void RemovePointerMatchCallback::replace_global_pointer(const Decl* decl)
+void RemovePointerMatchCallback::replace_pointer_use_macro(const Expr* baseExp, SourceLocation loc1)
 {
-    string replacement = "";
-
-    SourceLocation loc_start = decl->getLocStart();
-    // Get the location after the semicolon following the declaration of complete_system_io_M.
-    SourceLocation after_semi_loc = Lexer::findLocationAfterToken(decl->getLocEnd(), semi, *SM, LangOptions(), false);
-    if (!after_semi_loc.isValid()) {
-        outputDeclaration(decl, errs(), loc_start);
-        errs() << "ERROR: Unable to find source location of the declaration of complete_system_io_M.\n";
-        errs() << "\n\n";
-        return;
+    // const char* start is a pointer to the character at that location of the '('.
+    // So if we have:
+    // rtmIsMajorTimeStep(complete_system_io_M)
+    //                    ^
+    // it points to the 'c'.
+    const char* start = SM->getCharacterData(loc1);
+    /* We need to get the text between the '(' and ')', the text to replace:
+     * complete_system_io_M
+     * This loop goes from the starting position and increments the pointer until it
+     * reaches a delimiting character which marks the end of the token.
+     * When this loop ends, the pointer start will be pointing to that exact character.
+     * rtmIsMajorTimeStep(complete_system_io_M)
+     *                                        ^
+     * The ',' can also be a such delimiter:
+     * rtmSetTPtr(complete_system_io_M,
+     *                                ^
+     *
+     * unsigned int num_chars counts how many characters away is that delimiter char
+     * from the '(', how many characters is the text to replace.
+     */
+    unsigned int num_chars = 0;
+    while (*start != ')' && *start != ',') {
+        ++num_chars;
+        ++start;
     }
-    CharSourceRange range = CharSourceRange::getTokenRange(loc_start, after_semi_loc);
-    Replacement global_pointer_rep(*SM, range, replacement);
+    // (start + num_chars) points to the delimiter character.
+    // (start + num_chars - 1) points to the char preceding the delimiter character,
+    // not including the delimiter character.
+    // loc2 now is a SourceLocation that points to (num_chars - 1) away from the '('
+    SourceLocation loc2 = loc1.getLocWithOffset(num_chars - 1);
+    //SourceLocation loc2 = Lexer::findLocationAfterToken(loc_end, r_paren, *SM, LangOptions(), false);
 
-    if (Error err = (*replacements)[global_pointer_rep.getFilePath()].add(global_pointer_rep)) {
-        outputDeclaration(decl, errs(), loc_start);
-        errs() << "ERROR: Error adding replacement that removes the declaration of complete_system_io_M.\n";
+    /* Calculating the string replacement. */
+
+    string replacement = "&";
+    // Go past the parenthesis and implicit casts to get the DeclRefExpr.
+    // This is the complete_system_io_M
+    const DeclRefExpr *varexpr = dyn_cast<DeclRefExpr>(baseExp->IgnoreParenImpCasts());
+    // These are temporary expressions that are only needed to compute the replacement string.
+    // They are put in {} here, artificially scope delimited because after this point
+    // we don't need them any more.
+    {
+        // Get the actual declaration of the global pointer.
+        const VarDecl *vardecl = dyn_cast<VarDecl>(varexpr->getDecl());
+        // Get the right hand side of the operator =, which is &complete_system_io_M_
+        const UnaryOperator *init = dyn_cast<UnaryOperator>(vardecl->getInit());
+        // Get the global struct, which is complete_system_io_M_
+        const auto *global_struct = init->getSubExpr();
+        replacement += getExprAsString(global_struct);
+    }
+
+    // Get the range of characters to be replaced, between '(' and the delimiter char,
+    // either ')' or ','
+    // Not including the delimiter character.
+    // We do not want to replace the delimiter character.
+    CharSourceRange range = CharSourceRange::getTokenRange(loc1, loc2);
+
+    /* Performing the actual replacement, replacing the source code text. */
+
+    Replacement pointer_use_macro_rep(*SM, range, replacement);
+    if (Error err = (*replacements)[pointer_use_macro_rep.getFilePath()].add(pointer_use_macro_rep)) {
+        outputExpression(varexpr, errs(), varexpr->getLocStart());
+        errs() << "ERROR: Error adding replacement that replaces the pointer use with address of structure.\n";
         errs() << "\n\n";
         return;
     }
     if (print_debug_output) {
-        outputDeclaration(decl, outs(), loc_start);
+        //outputExpression(baseExp, outs(), loc_start);
+        //outs() << '(';
+        outputExpression(varexpr, outs(), varexpr->getLocStart());
         outs() << "replaced with:\n" << replacement << '\n';
         outs() << "\n\n";
     }
-    // No error, increment the number of global pointer removals to print to the user.
-    ++num_global_pointers;
+
+    // Even though this is technically a pointer dereference,
+    // I'm treating it as a pointer use:
+    // rtmIsMajorTimeStep(complete_system_io_M)
+    // And the replacement that is prerformed in this situation is similar to the
+    // replacement that is performed for a typical pointer use.
+    ++num_pointer_uses;
+    return;
 }
 
 
-void RemovePointerMatchCallback::outputExpression(const Expr* expr, raw_ostream& output, const SourceLocation& loc_start) const
+void RemovePointerMatchCallback::replace_pointer_dereference(const Expr* baseExp)
 {
-    output << getExprAsString(expr) << '\n';
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
+    LangOptions langopt;
+    // This DeclRefExpr is the pointer variable which is used,
+    // complete_system_io_M
+    const DeclRefExpr *varexpr = dyn_cast<DeclRefExpr>(baseExp->IgnoreParenImpCasts());
+    // The SourceLocation startLoc, and it's char* representation, start, both point
+    // to the first character in the expression.
+    // complete_system_io_M->Timing
+    // ^
+    SourceLocation startLoc = varexpr->getLocStart();
+    const char* start = SM->getCharacterData(startLoc);
+
+    /* We need to get the text to replace:
+     * complete_system_io_M->
+     * This loop goes from the starting position and increments the pointer until it
+     * reaches the '-' character which marks the end of the token.
+     * When this loop ends, the pointer start will be pointing to that exact character.
+     * complete_system_io_M->
+     *                     ^
+     *
+     * unsigned int num_chars counts how many characters away the '-' is from the
+     * original startLoc, how many characters in the text to replace.
+     */
+    unsigned int num_chars = 0;
+    while (*start != '-') {
+        ++num_chars;
+        ++start;
+    }
+    // endLoc saves as a Sourcelocation, the position where to stop the replacement
+    // character range.
+    // complete_system_io_M->
+    //                      ^
+    // The replacement character range now includes the name of the pointer and
+    // the -> operator.
+    SourceLocation endLoc = startLoc.getLocWithOffset(num_chars + 1);
+    CharSourceRange range = CharSourceRange::getTokenRange(startLoc, endLoc);
+
+    string replacement;
+    // These are temporary expressions that are only needed to compute the replacement string.
+    // They are put in {} here, artificially scope delimited because after this point
+    // we don't need them any more.
+    {
+        // Get the actual declaration of the global pointer.
+        const VarDecl *vardecl = dyn_cast<VarDecl>(varexpr->getDecl());
+        // Get the right hand side of the operator =, which is &complete_system_io_M_
+        const UnaryOperator *init = dyn_cast<UnaryOperator>(vardecl->getInit());
+        // Get the global struct, which is complete_system_io_M_
+        const auto *global_struct = init->getSubExpr();
+        replacement += getExprAsString(global_struct);
+        replacement.push_back('.');
+    }
+
+    /* Performing the actual replacement, replacing the source code text. */
+
+    Replacement pointer_dereference_rep(*SM, range, replacement);
+    if (Error err = (*replacements)[pointer_dereference_rep.getFilePath()].add(pointer_dereference_rep)) {
+        outputExpression(varexpr, errs(), startLoc, num_chars + 2);
+        //errs() << string(SM->getCharacterData(startLoc), num_chars + 2) << '\n';
+        errs() << "ERROR: Error adding replacement that replaces the pointer dereference arrow expression.\n";
+        errs() << "\n\n";
+        return;
+    }
+    if (print_debug_output) {
+        outputExpression(varexpr, outs(), startLoc, num_chars + 2);
+        //outs() << string(SM->getCharacterData(startLoc), num_chars + 2) << '\n';
+        outs() << "replaced with:\n" << replacement << '\n';
+        outs() << "\n\n";
+    }
+    ++num_pointer_dereferences;
+    return;
+}
+
+
+void RemovePointerMatchCallback::outputExpression(const Expr* expr, raw_ostream& output, const SourceLocation& loc_start, const int numchars) const
+{
+    // If numchars are not provided as a function argument or if it is a negative value,
+    // this branch is executed.
+    if (numchars < 0) {
+        output << getExprAsString(expr) << '\n';
+    // numchars are provided as a function argument, manually compute the output string.
+    } else {
+        output << string(SM->getCharacterData(loc_start), numchars) << '\n';
+    }
+
+    // If the loc_start is inside a macro, then it's possible that SM->getFileName() would
+    // not be able to read the file name information from it.
+    // In that case we want to make sure to pass in the spelling location to that function,
+    // because it expects a spelling location, and in case of a macro expansion, that may not
+    // be the case for loc_start.
+    if (loc_start.isMacroID()) {
+        SourceLocation spelling_loc_start = SM->getSpellingLoc(loc_start);
+        output << "in "<< SM->getFilename(spelling_loc_start) << ':';
+        output << SM->getPresumedLineNumber(spelling_loc_start) << ':';
+        output << SM->getPresumedColumnNumber(spelling_loc_start) << ':' << '\n';
+    } else {
+        output << "in "<< SM->getFilename(loc_start) << ':';
+        output << SM->getPresumedLineNumber(loc_start) << ':';
+        output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
+    }
 }
 
 

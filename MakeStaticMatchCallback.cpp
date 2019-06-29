@@ -2,6 +2,23 @@
 
 #include "clang/Lex/Lexer.h"
 
+using llvm::outs;
+using llvm::errs;
+using llvm::raw_ostream;
+using llvm::Error;
+
+using clang::tooling::Replacement;
+using clang::ast_matchers::StatementMatcher;
+using clang::ast_matchers::functionDecl;
+using clang::ast_matchers::callExpr;
+using clang::ast_matchers::binaryOperator;
+using clang::ast_matchers::callee;
+using clang::ast_matchers::ignoringParenImpCasts;
+using clang::ast_matchers::has;
+using clang::ast_matchers::hasName;
+using clang::ast_matchers::hasRHS;
+using clang::ast_matchers::hasOperatorName;
+
 using clang::CallExpr;
 using clang::SourceLocation;
 using clang::Lexer;
@@ -16,9 +33,27 @@ using clang::UnaryExprOrTypeTraitExpr;
 using clang::UETT_SizeOf;
 using clang::Expr;
 using clang::tok::semi;
-using clang::tooling::Replacement;
-using llvm::outs;
-using llvm::Error;
+
+
+void MakeStaticMatchCallback::getASTmatchers(MatchFinder& mf) const
+{
+    StatementMatcher free_call_matcher = callExpr(
+        callee(functionDecl(hasName("free")))
+    ).bind("free_call");
+
+    StatementMatcher calloc_assign_matcher = binaryOperator(
+        hasOperatorName("="),
+        hasRHS(ignoringParenImpCasts((has(
+            callExpr(callee(functionDecl(hasName("calloc"))))
+        ))))
+    ).bind("calloc_assign");
+
+    // &make_static_match_callback, is the address of the calling object == this
+    // The second argument should be of type (MatchFinder::MatchCallback *)
+    mf.addMatcher(free_call_matcher, (MatchFinder::MatchCallback *) this);
+    mf.addMatcher(calloc_assign_matcher, (MatchFinder::MatchCallback *) this);
+}
+
 
 void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 

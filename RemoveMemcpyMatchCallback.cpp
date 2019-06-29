@@ -18,6 +18,18 @@ using llvm::raw_ostream;
 using llvm::APInt;
 using llvm::Error;
 
+using clang::tooling::Replacement;
+using clang::ast_matchers::MatchFinder;
+using clang::ast_matchers::StatementMatcher;
+using clang::ast_matchers::cStyleCastExpr;
+using clang::ast_matchers::functionDecl;
+using clang::ast_matchers::callExpr;
+using clang::ast_matchers::callee;
+using clang::ast_matchers::hasName;
+using clang::ast_matchers::hasSourceExpression;
+using clang::ast_matchers::hasAncestor;
+using clang::ast_matchers::unless;
+
 using clang::dyn_cast;
 using clang::isa;
 using clang::PointerType;
@@ -39,10 +51,30 @@ using clang::SourceLocation;
 using clang::Lexer;
 using clang::CharSourceRange;
 using clang::tok::semi;
-using clang::tooling::Replacement;
-using clang::ast_matchers::MatchFinder;
 
 extern bool print_debug_output;  // defined in refactoring_tool.cpp
+
+void RemoveMemcpyMatchCallback::getASTmatchers(MatchFinder& mf) const
+{
+    // match all instances of:
+    // (void) memcpy(/* ... */);
+    StatementMatcher cast_memcpy_matcher = cStyleCastExpr(hasSourceExpression(
+        callExpr(callee(functionDecl(hasName("memcpy"))))
+    )).bind("cast_memcpy_call");
+
+    // match all instances of:
+    // memcpy(/* ... */);
+    StatementMatcher memcpy_matcher = callExpr(
+        callee(functionDecl(hasName("memcpy"))),
+        unless(hasAncestor(cStyleCastExpr()))
+    ).bind("memcpy_call");
+
+    // &remove_memcpy_match_callback, is the address of the calling object == this
+    // The second argument should be of type (MatchFinder::MatchCallback *)
+    mf.addMatcher(memcpy_matcher, (MatchFinder::MatchCallback *) this);
+    mf.addMatcher(cast_memcpy_matcher, (MatchFinder::MatchCallback *) this);
+}
+
 
 void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
 {

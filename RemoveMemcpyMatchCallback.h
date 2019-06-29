@@ -45,6 +45,17 @@ class RemoveMemcpyMatchCallback : public MatchFinder::MatchCallback
 		: replacements(replacements), SM(nullptr) {}
 
     /**
+     * This method creates and "returns" the AST matchers that match expressions specifically
+     * handled by this CallBack class, through the pass by reference parameter.
+     *
+     * @param MatchFinder& mf - A non const reference to the MatchFinder in the main() function.
+     *                     When this object is passed into this method, it is modified, the AST
+     *                     matchers are added to it. This is my solution for "returning" multiple
+     *                     AST matchers of possibly different types.
+     */
+    void getASTmatchers(MatchFinder& mf) const;
+
+    /**
      * Callback method for the MatchFinder, this function gets called whenever a matching
      * expression is found. This is either a CallExpr or a CStyleCastExpr.
      * Either way, the call to memcpy() is extracted from this expression, it is analyzed,

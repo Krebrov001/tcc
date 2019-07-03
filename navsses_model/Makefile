@@ -1,6 +1,6 @@
 CC=clang
 CFLAGS=-Wall
-LIBS=-lm
+LIBS=-lopenlibm
 
 all: complete_system
 

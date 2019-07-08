@@ -83,4 +83,4 @@ class MakeStaticMatchCallback : public MatchFinder::MatchCallback {
 	bool _remove_code = true;
 };
 
-#endif
+#endif  /* MAKE_STATIC_MATCH_CALLBACK_H */

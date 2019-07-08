@@ -30,7 +30,14 @@ LDLIBS := \
 
 # Names of files used in this project.
 EXECUTABLE := refactoring_tool
-CXX_FILES  := refactoring_tool.cpp RemoveMemcpyMatchCallback.cpp MakeStaticMatchCallback.cpp RemovePointerMatchCallback.cpp
+CXX_FILES  := refactoring_tool.cpp \
+              RemoveMemcpyMatchCallback.cpp \
+			  MakeStaticMatchCallback.cpp \
+			  RemovePointerMatchCallback.cpp \
+			  RemoveHypotMatchCallback.cpp \
+			  RemoveVariablesMatchCallback.cpp \
+			  FindVariablesMatchCallback.cpp
+
 O_FILES    := $(CXX_FILES:cpp=o)
 
 # What is the purpose of .PHONY in a makefile?
@@ -55,6 +62,9 @@ refactoring_tool.o: refactoring_tool.cpp RemoveMemcpyMatchCallback.h MakeStaticM
 RemoveMemcpyMatchCallback.o: RemoveMemcpyMatchCallback.cpp custom_exceptions.h RemoveMemcpyMatchCallback.h
 MakeStaticMatchCallback.o: MakeStaticMatchCallback.cpp MakeStaticMatchCallback.h
 RemovePointerMatchCallback.o: RemovePointerMatchCallback.cpp RemovePointerMatchCallback.h
+RemoveHypotMatchCallback.o: RemoveHypotMatchCallback.cpp RemoveHypotMatchCallback.h
+FindVariablesMatchCallback.o: FindVariablesMatchCallback.cpp FindVariablesMatchCallback.h
+RemoveVariablesMatchCallback.o: RemoveVariablesMatchCallback.cpp RemoveVariablesMatchCallback.h
 
 # Restore model program to original state
 .PHONY: reset

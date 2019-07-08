@@ -6,13 +6,24 @@
 #include "RemoveMemcpyMatchCallback.h"
 #include "RemovePointerMatchCallback.h"
 #include "MakeStaticMatchCallback.h"
+#include "RemoveHypotMatchCallback.h"
+#include "FindVariablesMatchCallback.h"
+#include "RemoveVariablesMatchCallback.h"
 
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Refactoring.h"
 
+
+/* TODO: Remove these */
+#include <string>
+#include <vector>
+using std::string;
+using std::vector;
+
 using llvm::outs;
 using llvm::errs;
+using llvm::ArrayRef;
 using llvm::cl::opt;
 using llvm::cl::desc;
 using llvm::cl::OptionCategory;
@@ -43,8 +54,66 @@ using clang::ast_matchers::memberExpr;
 using clang::ast_matchers::isExpansionInMainFile;
 using clang::ast_matchers::namedDecl;
 
+using clang::tooling::CompilationDatabase;
+using clang::LangOptions;
+using clang::FrontendAction;
+using clang::IntrusiveRefCntPtr;
+using clang::DiagnosticOptions;
+using clang::TextDiagnosticFormat;
+using clang::DiagnosticsEngine;
+using clang::DiagnosticIDs;
+using clang::Rewriter;
+
 // Global variable is non static so that it can be externed into other translation units.
 bool print_debug_output = false;
+
+/*
+class CustomRefactoringTool : public RefactoringTool {
+  public:
+    CustomRefactoringTool(const CompilationDatabase& Compilations, ArrayRef<string> SourcePaths,
+                          const FindVariablesMatchCallback& obj)
+    : RefactoringTool(Compilations, SourcePaths), remove_variables_match_callback(&obj) {}
+
+    int runAndSave(FrontendAction* ActionFactory) {
+        // Run the first round of replacements. This activates the run() methods of all
+        // CallBack classes that matched.
+        // Result will be non-zero (true), if there is an error.
+        // Stop running the function and immediately return.
+        if (int Result = run(ActionFactory)) {
+            return Result;
+        }
+
+        // Run the second round of replacements for all CallBack classes.
+        //remove_variables_match_callback->runSecondRound();
+
+        LangOptions DefaultLangOptions;
+        IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
+        // Why do you need &* ???
+        TextDiagnosticFormat DiagnosticPrinter(errs(), &*DiagOpts);
+        DiagnosticsEngine Diagnostics(
+            IntrusiveRefCntPtr<DiagnosticIDs>(new DiagnosticIDs()),
+            &*DiagOpts, &DiagnosticPrinter, false
+        );
+
+        // Get the sources of all the files in order to write the replacements to disk.
+        SourceManager Sources(Diagnostics, getFiles());
+        // Create a Rewriter which is responsible for rewriting the source files with the
+        // new text replacements, and saving those files to the disk.
+        Rewriter Rewrite(Sources, DefaultLangOptions);
+
+        // Apply all replacements to the source files using the Rewriter, and check return code
+        // for errors.
+        if (!applyAllReplacements(Rewrite)) {
+            errs() << "ERROR: Skipped some replacements.\n";
+        }
+
+        // Save the rewritten files to the disk, and return the code to the caller of this method.
+        return saveRewrittenFiles(Rewrite);
+    }
+  private:
+    const FindVariablesMatchCallback* remove_variables_match_callback;
+};
+*/
 
 int main(int argc, const char **argv)
 {
@@ -68,10 +137,12 @@ int main(int argc, const char **argv)
     // fail to recognize that command line option.
     opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
 
-    opt<bool> RunRemoveMemcpy("remove-memcpy", desc("This option turns on removal of memcpy()."));
+    opt<bool> RunRemoveMemcpy("remove-memcpy", desc("This option turns on replacement of memcpy()."));
     opt<bool> RunMakeStatic("make-static", desc("This option turns all dynamic memory allocations"
                                                 "into stack ones, gets rid of calloc() and free()."));
     opt<bool> RunRemovePointer("remove-pointer", desc("This option turns on removal of the global pointer."));
+    opt<bool> RunRemoveHypot("remove-hypot", desc("This option turns on replacement of hypot()."));
+    opt<bool> RunRemoveVariables("remove-variables", desc("This option removes unused variables"));
 
 	// Parses the command line arguments for you.
 	// The third argument is a tool-specific options category.
@@ -121,12 +192,43 @@ int main(int argc, const char **argv)
         remove_pointer_match_callback.getASTmatchers(mf);
     }
 
+    //// Remove hypot details
+    RemoveHypotMatchCallback remove_hypot_match_callback(&tool.getReplacements());
+    if (RunRemoveHypot) {
+        remove_hypot_match_callback.getASTmatchers(mf);
+    }
+
+    //// Remove variables details
+    FindVariablesMatchCallback find_variables_match_callback(&tool.getReplacements());
+    if (RunRemoveVariables) {
+        find_variables_match_callback.getASTmatchers(mf);
+    }
+
 	// Run the tool
 	auto result = tool.runAndSave(newFrontendActionFactory(&mf).get());
 
 	if (result != 0) {
 		errs() << "Error in the Refactoring Tool: " << result << "\n";
 		return result;
+	}
+
+    MatchFinder mf2;
+
+    //// Remove variables details
+    RemoveVariablesMatchCallback remove_variables_match_callback(&tool.getReplacements());
+    if (RunRemoveVariables) {
+        // Get the list of variables to remove.
+        find_variables_match_callback.collectResults(remove_variables_match_callback.getVector());
+        // Get the AST matchers describing them.
+        remove_variables_match_callback.getASTmatchers(mf2);
+    }
+
+    // Run the tool
+	auto result2 = tool.runAndSave(newFrontendActionFactory(&mf2).get());
+
+	if (result2 != 0) {
+		errs() << "Error in the Refactoring Tool: " << result2 << "\n";
+		return result2;
 	}
 
     // Print diagnostic output.
@@ -160,6 +262,18 @@ int main(int argc, const char **argv)
             outs() << "Removed " << num_global_pointers << " global pointers.\n";
             outs() << "Replaced " << num_pointer_uses << " pointer uses.\n";
             outs() << "Replaced " << num_pointer_dereferences << " pointer dereferences.\n";
+        }
+
+        if (RunRemoveHypot) {
+            unsigned int num_hypot_replacements = remove_hypot_match_callback.getNumHypotReplacements();
+            num_refactorings += num_hypot_replacements;
+            outs() << "Replaced " << num_hypot_replacements << " calls to hypot()\n";
+        }
+
+        if (RunRemoveVariables) {
+            unsigned int num_unused_variables = remove_variables_match_callback.getNumUnusedVariableRemovals();
+            num_refactorings += num_unused_variables;
+            outs() << "Removed " << num_unused_variables << " unused variables.\n";
         }
 
         outs() << '\n' << "Performed " << num_refactorings << " total refactorings\n";

@@ -55,7 +55,8 @@ void RemovePointerMatchCallback::getASTmatchers(MatchFinder& mf)
             hasGlobalStorage(),
             hasType(pointerType()),
             isExpansionInMainFile()
-        ) )))
+        ) ))),
+        unless(hasDescendant(memberExpr(isArrow())))
     ).bind("pointer_dereference");
 
     StatementMatcher pointer_use_matcher = declRefExpr(to(varDecl(
@@ -199,8 +200,6 @@ void RemovePointerMatchCallback::replace_pointer_use(const Expr* expr)
 
 void RemovePointerMatchCallback::replace_pointer_arrow(const MemberExpr* expr)
 {
-    #define DESIRED_TYPE "RT_MODEL_complete_system_io_T"
-
     // The base expression of the member expression is the calling object,
     // in this case baseExp->something.
     const auto* baseExp = expr->getBase();
@@ -213,68 +212,62 @@ void RemovePointerMatchCallback::replace_pointer_arrow(const MemberExpr* expr)
     const QualType pointeeType = type->getPointeeType();
     string type_string = pointeeType.getAsString();
 
-    /* The base data type has to be a pointer to RT_MODEL_complete_system_io_T
-     * For example:
-     * complete_system_io_M->
-     */
-    if (type_string == DESIRED_TYPE) {
-        // Returns true if the expression is inside of a macro, is part of an argument to a macro.
-        // This could be of two possibilites:
-        // 1. The expression is itself the argument to a macro:
+    // Returns true if the expression is inside of a macro, is part of an argument to a macro.
+    // This could be of two possibilites:
+    // 1. The expression is itself the argument to a macro:
+    // rtmIsMajorTimeStep(complete_system_io_M)
+    // So we need to replace it with &complete_system_io_M_
+    // 2. The result of the expression is used to compute the argument to a macro,
+    //    but the expression is not the argument itself.
+    // rtsiSetSolverName(&complete_system_io_M->solverInfo,"ode3");
+    // In that case we need to replace it with complete_system_io_M_.
+    // It is an arrow expression, and we need to replace it with a dot.
+    if (loc_start.isMacroID()) {
+
+        // This line of code will get where the macro is defined,
+        // in complete_system_io_private.h
+        //loc_start = baseExp->getLocStart();
+        //
+        // This should be used for replacing the macro expansion location with the literal
+        // text of the macro definition, like performing your own macro expansion immediately
+        // with the new data. No macro call happens because the refactoring tool expands it
+        // in this situation. The refactoring tool does the preprocessor's job.
+
+        // This line of code will get to where the macro is expanded to, without the expansion.
+        loc_start = SM->getFileLoc(baseExp->getLocStart());
+        // The above code will either return the start of a macro call,
         // rtmIsMajorTimeStep(complete_system_io_M)
-        // So we need to replace it with &complete_system_io_M_
-        // 2. The result of the expression is used to compute the argument to a macro,
-        //    but the expression is not the argument itself.
-        // rtsiSetSolverName(&complete_system_io_M->solverInfo,"ode3");
-        // In that case we need to replace it with complete_system_io_M_.
-        // It is an arrow expression, and we need to replace it with a dot.
-        if (loc_start.isMacroID()) {
+        // or it will return the start of an arrow expression,
+        // complete_system_io_M->Timing
+        //
+        // This should be used for replacing the argument to the macro call with the new data.
+        // The macro call is still expanded by the preprocessor because it is left untouched.
 
-            // This line of code will get where the macro is defined,
-            // in complete_system_io_private.h
-            //loc_start = baseExp->getLocStart();
-            //
-            // This should be used for replacing the macro expansion location with the literal
-            // text of the macro definition, like performing your own macro expansion immediately
-            // with the new data. No macro call happens because the refactoring tool expands it
-            // in this situation. The refactoring tool does the preprocessor's job.
+        // This code gets the end of the above expression.
+        SourceLocation loc_end = SM->getFileLoc(baseExp->getLocEnd());
 
-            // This line of code will get to where the macro is expanded to, without the expansion.
-            loc_start = SM->getFileLoc(baseExp->getLocStart());
-            // The above code will either return the start of a macro call,
-            // rtmIsMajorTimeStep(complete_system_io_M)
-            // or it will return the start of an arrow expression,
-            // complete_system_io_M->Timing
-            //
-            // This should be used for replacing the argument to the macro call with the new data.
-            // The macro call is still expanded by the preprocessor because it is left untouched.
-
-            // This code gets the end of the above expression.
-            SourceLocation loc_end = SM->getFileLoc(baseExp->getLocEnd());
-
-            // loc1 is the location directly following the '(' after the end of the token.
-            // So if we have:
-            // rtmIsMajorTimeStep(complete_system_io_M)
-            //                    ^
-            // Otherwise if we have:
-            // complete_system_io_M->Timing
-            // the loc1 would be invalid.
-            SourceLocation loc1 = Lexer::findLocationAfterToken(loc_end, l_paren, *SM, LangOptions(), false);
-            // If the loc1 is not valid, then we have an arrow expression inside a macro call:
-            // complete_system_io_M->Timing
-            if (!loc1.isValid()) {
-                replace_pointer_dereference(baseExp);
-
-            // If the loc1 is valid, then we have the expression as an argument to the macro call,
-            // rtmIsMajorTimeStep(complete_system_io_M)
-            //                    ^
-            } else {
-                replace_pointer_use_macro(baseExp, loc1);
-            }
-
-        } else {
+        // loc1 is the location directly following the '(' after the end of the token.
+        // So if we have:
+        // rtmIsMajorTimeStep(complete_system_io_M)
+        //                    ^
+        // Otherwise if we have:
+        // complete_system_io_M->Timing
+        // the loc1 would be invalid.
+        SourceLocation loc1 = Lexer::findLocationAfterToken(loc_end, l_paren, *SM, LangOptions(), false);
+        // If the loc1 is not valid, then we have an arrow expression inside a macro call:
+        // complete_system_io_M->Timing
+        if (!loc1.isValid()) {
             replace_pointer_dereference(baseExp);
+
+        // If the loc1 is valid, then we have the expression as an argument to the macro call,
+        // rtmIsMajorTimeStep(complete_system_io_M)
+        //                    ^
+        } else {
+            replace_pointer_use_macro(baseExp, loc1);
         }
+
+    } else {
+        replace_pointer_dereference(baseExp);
     }
 }
 

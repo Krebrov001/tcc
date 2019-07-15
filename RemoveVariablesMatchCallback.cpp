@@ -4,10 +4,8 @@
 #include "clang/Tooling/Refactoring.h"
 
 #include <string>
-#include <vector>
 
 using std::string;
-using std::vector;
 
 using llvm::outs;
 using llvm::errs;
@@ -22,8 +20,6 @@ using clang::ast_matchers::varDecl;
 using clang::ast_matchers::hasName;
 using clang::ast_matchers::isExpansionInMainFile;
 
-using clang::dyn_cast;
-using clang::isa;
 using clang::LangOptions;
 using clang::SourceLocation;
 using clang::CharSourceRange;
@@ -33,7 +29,7 @@ using clang::tok::semi;
 
 extern bool print_debug_output;  // defined in refactoring_tool.cpp
 
-void RemoveVariablesMatchCallback::getASTmatchers(MatchFinder& mf) const
+void RemoveVariablesMatchCallback::getASTmatchers(MatchFinder& mf)
 {
     auto it = variables.cbegin();
     auto endp = variables.cend();
@@ -51,11 +47,10 @@ void RemoveVariablesMatchCallback::getASTmatchers(MatchFinder& mf) const
         // such as those in the standard library.
 
         // &remove_variables_match_callback, is the address of the calling object == this
-        // The second argument should be of type (MatchFinder::MatchCallback *)
         // The variable_declaration_matcher which is added to the MatchFinder here is the local
         // one inside the body of the loop. Each loop iteration, a distinct one is created and it
         // is added to the MatchFinder.
-        mf.addMatcher(variable_declaration_matcher, (MatchFinder::MatchCallback *) this);
+        mf.addMatcher(variable_declaration_matcher, this);
     }
 }
 
@@ -65,7 +60,8 @@ void RemoveVariablesMatchCallback::run(const MatchFinder::MatchResult& result)
     SM = result.SourceManager;
 
     if (auto* variable_declaration = result.Nodes.getNodeAs<VarDecl>("variable_declaration")) {
-        string replacement = "";
+        // By replacing the declaration with "" we are efrectively deleting it from the source code.
+        string replacement;
 
         SourceLocation loc_start = variable_declaration->getLocStart();
         SourceLocation loc_end   = variable_declaration->getLocEnd();

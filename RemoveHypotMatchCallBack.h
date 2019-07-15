@@ -4,11 +4,11 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Core/Replacement.h"
 
-#include <string>
 #include <map>
+#include <string>
 
-using std::string;
 using std::map;
+using std::string;
 
 using llvm::raw_ostream;
 
@@ -45,7 +45,7 @@ class RemoveHypotMatchCallback : public MatchFinder::MatchCallback
      *                     matchers are added to it. This is my solution for "returning" multiple
      *                     AST matchers of possibly different types.
      */
-    void getASTmatchers(MatchFinder& mf) const;
+    void getASTmatchers(MatchFinder& mf);
 
     /**
      * Callback method for the MatchFinder, this function gets called whenever a matching

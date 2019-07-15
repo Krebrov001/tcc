@@ -20,24 +20,21 @@ using clang::ast_matchers::functionDecl;
 using clang::ast_matchers::callee;
 using clang::ast_matchers::hasName;
 
-using clang::dyn_cast;
 using clang::Expr;
 using clang::CallExpr;
-using clang::SourceManager;
 using clang::SourceLocation;
 using clang::CharSourceRange;
 
 extern bool print_debug_output;  // defined in refactoring_tool.cpp
 
-void RemoveHypotMatchCallback::getASTmatchers(MatchFinder& mf) const
+void RemoveHypotMatchCallback::getASTmatchers(MatchFinder& mf)
 {
     StatementMatcher hypot_matcher = callExpr(
         callee(functionDecl(hasName("hypot")))
     ).bind("hypot_call");
 
     // &remove_hypot_match_callback, is the address of the calling object == this
-    // The second argument should be of type (MatchFinder::MatchCallback *)
-    mf.addMatcher(hypot_matcher, (MatchFinder::MatchCallback *) this);
+    mf.addMatcher(hypot_matcher, this);
 }
 
 

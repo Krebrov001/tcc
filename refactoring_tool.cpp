@@ -3,158 +3,135 @@
  * first, followed by Clang and LLVM API headers. When two headers pertain to the same category,
  * order them alphabetically.
  */
-#include "RemoveMemcpyMatchCallback.h"
-#include "RemovePointerMatchCallback.h"
+// Header files for CallBack classes, each of which implements a single refactoring.
+#include "FindVariablesMatchCallback.h"
 #include "MakeStaticMatchCallback.h"
 #include "RemoveHypotMatchCallback.h"
-#include "FindVariablesMatchCallback.h"
+#include "RemoveMemcpyMatchCallback.h"
+#include "RemovePointerMatchCallback.h"
 #include "RemoveVariablesMatchCallback.h"
 
+// Header files for Clang libraries.
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Refactoring.h"
-
-
-/* TODO: Remove these */
-#include <string>
-#include <vector>
-using std::string;
-using std::vector;
+#include "llvm/Support/CommandLine.h"
 
 using llvm::outs;
 using llvm::errs;
-using llvm::ArrayRef;
+using llvm::raw_ostream;
+using llvm::report_fatal_error;
+
 using llvm::cl::opt;
 using llvm::cl::desc;
-using llvm::cl::OptionCategory;
+using llvm::cl::Positional;
+using llvm::cl::OneOrMore;
+using llvm::cl::extrahelp;
+using llvm::cl::ValueRequired;
+using llvm::cl::SetVersionPrinter;
+using llvm::cl::ParseCommandLineOptions;
 
-using clang::tooling::CommonOptionsParser;
 using clang::tooling::RefactoringTool;
 using clang::tooling::newFrontendActionFactory;
-using clang::ast_matchers::MatchFinder;
-using clang::ast_matchers::StatementMatcher;
-using clang::ast_matchers::DeclarationMatcher;
-using clang::ast_matchers::hasName;
-using clang::ast_matchers::functionDecl;
-using clang::ast_matchers::cStyleCastExpr;
-using clang::ast_matchers::callee;
-using clang::ast_matchers::callExpr;
-using clang::ast_matchers::hasAncestor;
-using clang::ast_matchers::hasDescendant;
-using clang::ast_matchers::unless;
-using clang::ast_matchers::hasSourceExpression;
-using clang::ast_matchers::declRefExpr;
-using clang::ast_matchers::varDecl;
-using clang::ast_matchers::to;
-using clang::ast_matchers::hasGlobalStorage;
-using clang::ast_matchers::pointerType;
-using clang::ast_matchers::hasType;
-using clang::ast_matchers::isArrow;
-using clang::ast_matchers::memberExpr;
-using clang::ast_matchers::isExpansionInMainFile;
-using clang::ast_matchers::namedDecl;
-
 using clang::tooling::CompilationDatabase;
-using clang::LangOptions;
-using clang::FrontendAction;
-using clang::IntrusiveRefCntPtr;
-using clang::DiagnosticOptions;
-using clang::TextDiagnosticFormat;
-using clang::DiagnosticsEngine;
-using clang::DiagnosticIDs;
-using clang::Rewriter;
+using clang::tooling::FixedCompilationDatabase;
+using clang::ast_matchers::MatchFinder;
+
+/* Command line options description: */
+
+// <bool> Says that this option takes no argument, and is to be treated as a bool value only.
+// If this option is set, then the variable becomes true, otherwise it becomes false.
+// This line of code has to be above the ParseCommandLineOptions function call, otherwise
+// it will fail to parse the -debug option out, and the refactoring_tool executable will
+// fail to recognize that command line option.
+opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
+
+// Options to turn on various refactorings are optional.
+opt<bool> RunAll("all", desc("This options turns on all supported refactorings."));
+opt<bool> RunRemoveMemcpy("remove-memcpy", desc("This option turns on replacement of memcpy()."));
+opt<bool> RunMakeStatic("make-static", desc("This option turns all dynamic memory allocations "
+                                            "into stack ones, gets rid of calloc() and free()."));
+opt<bool> RunRemovePointer("remove-pointer", desc("This option turns on removal of the global pointer."));
+opt<bool> RunRemoveHypot("remove-hypot", desc("This option turns on replacement of hypot()."));
+opt<bool> RunRemoveVariables("remove-variables", desc("This option removes unreferenced variables."));
+
+// Option specifies the build path/directory.
+opt<string> BuildPath(Positional, desc("[<build-path>]"));
+// Options specifying the source files to refactor are one or more required.
+opt<string> SourcePaths(Positional, desc("<source0> [... <sourceN>]"), OneOrMore, ValueRequired);
+
+// Define an additional help message to be printed.
+extrahelp CommonHelp(
+    "\nArguments above mentioned in [ ] are optional (not required).\n"
+    "<build-path> should be specified if specific compiler options\n"
+    "are not provided on the command line.\n"
+);
 
 // Global variable is non static so that it can be externed into other translation units.
 bool print_debug_output = false;
 
-/*
-class CustomRefactoringTool : public RefactoringTool {
-  public:
-    CustomRefactoringTool(const CompilationDatabase& Compilations, ArrayRef<string> SourcePaths,
-                          const FindVariablesMatchCallback& obj)
-    : RefactoringTool(Compilations, SourcePaths), remove_variables_match_callback(&obj) {}
-
-    int runAndSave(FrontendAction* ActionFactory) {
-        // Run the first round of replacements. This activates the run() methods of all
-        // CallBack classes that matched.
-        // Result will be non-zero (true), if there is an error.
-        // Stop running the function and immediately return.
-        if (int Result = run(ActionFactory)) {
-            return Result;
-        }
-
-        // Run the second round of replacements for all CallBack classes.
-        //remove_variables_match_callback->runSecondRound();
-
-        LangOptions DefaultLangOptions;
-        IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts = new DiagnosticOptions();
-        // Why do you need &* ???
-        TextDiagnosticFormat DiagnosticPrinter(errs(), &*DiagOpts);
-        DiagnosticsEngine Diagnostics(
-            IntrusiveRefCntPtr<DiagnosticIDs>(new DiagnosticIDs()),
-            &*DiagOpts, &DiagnosticPrinter, false
-        );
-
-        // Get the sources of all the files in order to write the replacements to disk.
-        SourceManager Sources(Diagnostics, getFiles());
-        // Create a Rewriter which is responsible for rewriting the source files with the
-        // new text replacements, and saving those files to the disk.
-        Rewriter Rewrite(Sources, DefaultLangOptions);
-
-        // Apply all replacements to the source files using the Rewriter, and check return code
-        // for errors.
-        if (!applyAllReplacements(Rewrite)) {
-            errs() << "ERROR: Skipped some replacements.\n";
-        }
-
-        // Save the rewritten files to the disk, and return the code to the caller of this method.
-        return saveRewrittenFiles(Rewrite);
-    }
-  private:
-    const FindVariablesMatchCallback* remove_variables_match_callback;
-};
-*/
 
 int main(int argc, const char **argv)
 {
 	// Format should be:
-	// $ ./a.out tool_specific options -- clang_specific_options (not used)
-	// By default, input file(s) treated as a positional arguments of the tool-specific part of the options
-
-	/* Command line options description: */
-
-	// Define code generation tool option category.
-	// Prints a tool-specific message about arguments when --help is used
-	OptionCategory tool_category("remove_memcpy name", "remove_memcpy description");
-    // Define option for output file name.
+	// $ refactoring_tool tool_specific options -- clang_specific_options (not used)
+    //  OR
+    // $ refactoring_tool [options] [<build-path>] <source0> [... <sourceN>] --
+	// By default, input file(s) are treated as positional arguments of the tool-specific part
+    // of the options.
 
 	/* Command line parsing: */
 
-    // <bool> Says that this option takes no argument, and is to be treated as a bool value only.
-    // If this option is set, then the variable becomes true, otherwise it becomes false.
-    // This line of code has to be above the declaration of the CommonOptionsParser, otherwise
-    // it will fail to parse the -debug option out, and the refactoring_tool executable will
-    // fail to recognize that command line option.
-    opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
-
-    opt<bool> RunRemoveMemcpy("remove-memcpy", desc("This option turns on replacement of memcpy()."));
-    opt<bool> RunMakeStatic("make-static", desc("This option turns all dynamic memory allocations"
-                                                "into stack ones, gets rid of calloc() and free()."));
-    opt<bool> RunRemovePointer("remove-pointer", desc("This option turns on removal of the global pointer."));
-    opt<bool> RunRemoveHypot("remove-hypot", desc("This option turns on replacement of hypot()."));
-    opt<bool> RunRemoveVariables("remove-variables", desc("This option removes unused variables"));
+    // Define the information to be printed with the -version option.
+    // Use a C++11 lambda function as the VersionPrinterTy func parameter to SetVersionPrinter().
+    // Adjacent string literals are automatically concatenated in C and C++.
+    SetVersionPrinter(
+        [](raw_ostream& os) {
+            const string version_information = "McLeod Refactoring Tool\n"
+                                               "By Konstantin Rebrov\n"
+                                               "development version 2.5\n";
+            os << version_information;
+        }
+    );
 
 	// Parses the command line arguments for you.
-	// The third argument is a tool-specific options category.
-    // This line of code has to be below the declaration of all opt<T> variables.
-	CommonOptionsParser optionsParser(argc, argv, tool_category);
+	ParseCommandLineOptions(argc, argv);
+    string ErrorMessage;
 
-    // CommonOptionsParser optionsParser has to be constructed before DebugOutput can be used.
-    // Internally, it calls cl::ParseCommandLineOptions, which sets the value of the DebugOutput
-    // depending on the presence or absence of the -debug flag in the command line arguments.
+    // Try to build a compilation datavase directly from the command-line.
+    std::unique_ptr<CompilationDatabase> Compilations(
+        FixedCompilationDatabase::loadFromCommandLine(argc, argv, ErrorMessage)
+    );
+    // If that failed.
+    if (!Compilations) {
+        // Load the compilation database using the given directory.
+        // Destroys the old object pointed to by the unique_ptr (if it exists), and acquires
+        // ownership of the rhs unique_ptr (or rather the underlying CompilationDatabase that it's
+        // pointing to).
+        Compilations = CompilationDatabase::loadFromDirectory(BuildPath, ErrorMessage);
+        // And if that failed.
+        if (!Compilations) {
+            errs() << "ERROR: Could not build compilation database.\n";
+            // Calls installed error handlers, prints a message generated by the llvm standard
+            // library, and gracefully exits the program.
+            report_fatal_error(ErrorMessage);
+        }
+    }
+
+    // ParseCommandLineOptions has to be called before DebugOutput can be used.
+    // It sets the value of the DebugOutput depending on the presence or absence of the
+    // -debug flag in the command line arguments.
     // cl::opt<T> is a class which has an operator T() method, in this case it is used to convert
     // to bool. It's easier to work with build in data types than classes.
     print_debug_output = DebugOutput;
+
+    // If the user specified -all option, then all refactorings should be enabled.
+    if (RunAll) {
+        RunRemoveMemcpy    = true;
+        RunMakeStatic      = true;
+        RunRemovePointer   = true;
+        RunRemoveHypot     = true;
+        RunRemoveVariables = true;
+    }
 
 	/* Run the Clang compiler for the each input file separately
      * (one input file - one output file).
@@ -162,16 +139,17 @@ int main(int argc, const char **argv)
 	 */
 	// The first argument is a list of compilations.
 	// The second argument is a list of source files to parse.
-	RefactoringTool tool(optionsParser.getCompilations(), optionsParser.getSourcePathList());
+	RefactoringTool tool(*Compilations, SourcePaths);
 
     if (print_debug_output) {
 	    outs() << "Starting match finder\n";
         outs() << "\n\n";
     }
 
+    // This first MatchFinder is responsible for applying replacements in the first round.
 	MatchFinder mf;
 
-    // Only add the StatementMatchers if the options enabling these refactorings are activated.
+    /* Only add the AST matchers if the options enabling these refactorings are activated. */
 
 	//// Remove memcpy details
 	// Make the RemoveMemcpyMatchCallback class be able to recieve the match results.
@@ -199,37 +177,48 @@ int main(int argc, const char **argv)
     }
 
     //// Remove variables details
-    FindVariablesMatchCallback find_variables_match_callback(&tool.getReplacements());
+    // NOTE: default constuctor takes no arguments.
+    // FindVariablesMatchCallback does not do any replacements, it only counts the variables.
+    FindVariablesMatchCallback find_variables_match_callback;
     if (RunRemoveVariables) {
         find_variables_match_callback.getASTmatchers(mf);
     }
 
 	// Run the tool
 	auto result = tool.runAndSave(newFrontendActionFactory(&mf).get());
-
 	if (result != 0) {
 		errs() << "Error in the Refactoring Tool: " << result << "\n";
 		return result;
 	}
 
+    // Create a second RefactoringTool to run the second round of refactorings.
+    // The first argument is a list of compilations.
+	// The second argument is a list of source files to parse.
+	RefactoringTool tool2(*Compilations, SourcePaths);
+    // Create a second MatchFinder to run the new RefactoringTool through the source code again,
+    // to apply replacements in the second round, mainly RemoveVariablesMatchCallback.
     MatchFinder mf2;
 
     //// Remove variables details
+    // This one actually removes the variables.
     RemoveVariablesMatchCallback remove_variables_match_callback(&tool.getReplacements());
     if (RunRemoveVariables) {
-        // Get the list of variables to remove.
+        /* These Step 1 and Step 2 MUST be called in this order ALWAYS! */
+
+        // Step 1: Get the list of variables to remove from the find_variables_match_callback.
+        // Connect the remove_variables_match_callback with the find_variables_match_callback.
         find_variables_match_callback.collectResults(remove_variables_match_callback.getVector());
-        // Get the AST matchers describing them.
+
+        // Step 2: Get the AST matchers describing them.
         remove_variables_match_callback.getASTmatchers(mf2);
     }
 
-    // Run the tool
-	auto result2 = tool.runAndSave(newFrontendActionFactory(&mf2).get());
-
+    // Run the new Refactoring Tool to apply replacements in the second round.
+	auto result2 = tool2.runAndSave(newFrontendActionFactory(&mf2).get());
 	if (result2 != 0) {
-		errs() << "Error in the Refactoring Tool: " << result2 << "\n";
-		return result2;
-	}
+	    errs() << "Error in the Refactoring Tool: " << result2 << "\n";
+	    return result2;
+    }
 
     // Print diagnostic output.
     if (print_debug_output) {
@@ -239,7 +228,7 @@ int main(int argc, const char **argv)
             unsigned int num_matches_found = remove_memcpy_match_callback.getNumMatchesFound();
             unsigned int num_replacements = remove_memcpy_match_callback.getNumReplacements();
             num_refactorings += num_replacements;
-	        outs() << "Found " << num_matches_found << " memcpy() matches found\n";
+	        outs() << "Found " << num_matches_found << " memcpy() matches\n";
 	        outs() << "Performed " << num_replacements << " memcpy() replacements\n";
         }
 

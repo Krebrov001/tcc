@@ -5,9 +5,8 @@
 #include "clang/Tooling/Core/Replacement.h"
 
 #include <cstring>
-
-#include <string>
 #include <map>
+#include <string>
 
 using std::string;
 using std::map;
@@ -47,7 +46,7 @@ class RemovePointerMatchCallback : public MatchFinder::MatchCallback
      *                     matchers are added to it. This is my solution for "returning" multiple
      *                     AST matchers of possibly different types.
      */
-    void getASTmatchers(MatchFinder& mf) const;
+    void getASTmatchers(MatchFinder& mf);
 
     /**
      * This method is called every time the AST matcher matches a corresponding expression
@@ -183,7 +182,7 @@ class RemovePointerMatchCallback : public MatchFinder::MatchCallback
      *                  Then a string starting at the SourceLocation with numchars following
      *                  characters is printed to the specified LLVM raw output stream.
      */
-    void outputExpression(const Expr* expr, raw_ostream& output, const SourceLocation& loc_start, const int numchars = -1) const;
+    void outputExpression(const Expr* expr, raw_ostream& output, const SourceLocation& loc_start, int numchars = -1) const;
 
     /**
      * This function prints the full declaration, the filename where this expression originated,

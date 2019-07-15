@@ -5,11 +5,11 @@
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/APInt.h"
 
-#include <string>
 #include <map>
+#include <string>
 
-using std::string;
 using std::map;
+using std::string;
 
 using llvm::raw_ostream;
 using llvm::APInt;
@@ -53,7 +53,7 @@ class RemoveMemcpyMatchCallback : public MatchFinder::MatchCallback
      *                     matchers are added to it. This is my solution for "returning" multiple
      *                     AST matchers of possibly different types.
      */
-    void getASTmatchers(MatchFinder& mf) const;
+    void getASTmatchers(MatchFinder& mf);
 
     /**
      * Callback method for the MatchFinder, this function gets called whenever a matching

@@ -1,13 +1,12 @@
-#include "RemovePointerMatchCallback.h"
-
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Refactoring.h"
+
+#include "RemovePointerMatchCallback.h"
 
 using llvm::outs;
 using llvm::errs;
 using llvm::raw_ostream;
 using llvm::Error;
-using llvm::StringRef;
 
 using clang::tooling::Replacement;
 using clang::ast_matchers::MatchFinder;
@@ -16,12 +15,10 @@ using clang::ast_matchers::DeclarationMatcher;
 
 using clang::ast_matchers::declRefExpr;
 using clang::ast_matchers::varDecl;
-using clang::ast_matchers::namedDecl;
 using clang::ast_matchers::memberExpr;
 using clang::ast_matchers::pointerType;
 using clang::ast_matchers::hasGlobalStorage;
 using clang::ast_matchers::hasType;
-using clang::ast_matchers::hasName;
 using clang::ast_matchers::hasAncestor;
 using clang::ast_matchers::hasDescendant;
 using clang::ast_matchers::isArrow;
@@ -30,59 +27,54 @@ using clang::ast_matchers::to;
 using clang::ast_matchers::unless;
 
 using clang::dyn_cast;
-using clang::isa;
 using clang::Decl;
 using clang::Expr;
 using clang::DeclRefExpr;
 using clang::MemberExpr;
-using clang::ValueDecl;
 using clang::VarDecl;
 using clang::UnaryOperator;
 using clang::MemberExpr;
 using clang::QualType;
-using clang::Type;
 using clang::PointerType;
 using clang::LangOptions;
 using clang::SourceManager;
 using clang::SourceLocation;
-using clang::SourceRange;
 using clang::CharSourceRange;
 using clang::Lexer;
 
 using clang::tok::semi;
 using clang::tok::l_paren;
-using clang::tok::r_paren;
-using clang::tok::l_brace;
-using clang::tok::greater;
 
 extern bool print_debug_output;  // defined in refactoring_tool.cpp
 
-void RemovePointerMatchCallback::getASTmatchers(MatchFinder& mf) const
+void RemovePointerMatchCallback::getASTmatchers(MatchFinder& mf)
 {
     StatementMatcher pointer_dereference_matcher = memberExpr(
         isArrow(),
-        hasDescendant(declRefExpr( to(namedDecl(hasName("complete_system_io_M"))) ))
+        hasDescendant(declRefExpr(to( varDecl(
+            hasGlobalStorage(),
+            hasType(pointerType()),
+            isExpansionInMainFile()
+        ) )))
     ).bind("pointer_dereference");
 
     StatementMatcher pointer_use_matcher = declRefExpr(to(varDecl(
-       hasGlobalStorage(),
-       hasType(pointerType()),
-       hasName("complete_system_io_M")
+        hasGlobalStorage(),
+        hasType(pointerType()),
+        isExpansionInMainFile()
     )), unless(hasAncestor( memberExpr(isArrow()) ))
     ).bind("pointer_use");
 
     DeclarationMatcher global_pointer_matcher = varDecl(
         hasGlobalStorage(),
         hasType(pointerType()),
-        isExpansionInMainFile(),
-        hasName("complete_system_io_M")
+        isExpansionInMainFile()
     ).bind("global_pointer");
 
     // &remove_pointer_match_callback, is the address of the calling object == this
-    // The second argument should be of type (MatchFinder::MatchCallback *)
-    mf.addMatcher(pointer_use_matcher, (MatchFinder::MatchCallback *) this);
-    mf.addMatcher(pointer_dereference_matcher, (MatchFinder::MatchCallback *) this);
-    mf.addMatcher(global_pointer_matcher, (MatchFinder::MatchCallback *) this);
+    mf.addMatcher(pointer_use_matcher, this);
+    mf.addMatcher(pointer_dereference_matcher, this);
+    mf.addMatcher(global_pointer_matcher, this);
 }
 
 
@@ -102,7 +94,7 @@ void RemovePointerMatchCallback::run(const MatchFinder::MatchResult& result)
 
 void RemovePointerMatchCallback::remove_global_pointer(const Decl* decl)
 {
-    string replacement = "";
+    string replacement;
 
     SourceLocation loc_start = decl->getLocStart();
     // Get the location after the semicolon following the declaration of complete_system_io_M.
@@ -146,7 +138,7 @@ void RemovePointerMatchCallback::replace_pointer_use(const Expr* expr)
         // Get the actual declaration of the global pointer.
         const auto *vardecl = dyn_cast<VarDecl>(varexp->getDecl());
         // Get the right hand side of the operator =, which is &complete_system_io_M_
-        const UnaryOperator *init = dyn_cast<UnaryOperator>(vardecl->getInit());
+        const auto *init = dyn_cast<UnaryOperator>(vardecl->getInit());
         // Get the global struct, which is complete_system_io_M_
         const auto *global_struct = init->getSubExpr();
         replacement += getExprAsString(global_struct);
@@ -155,24 +147,32 @@ void RemovePointerMatchCallback::replace_pointer_use(const Expr* expr)
         /* Performing the actual replacement, replacing the source code text. */
 
         LangOptions lopt;
-        SourceLocation startLoc = SM->getFileLoc(varexp->getLocStart());
-        SourceLocation _endLoc = SM->getFileLoc(varexp->getLocEnd());
+        SourceLocation startLoc = sm.getFileLoc(varexp->getLocStart());
+        SourceLocation _endLoc = sm.getFileLoc(varexp->getLocEnd());
         if (startLoc.isMacroID()) {
-            startLoc = SM->getSpellingLoc(startLoc);
+            startLoc = sm.getSpellingLoc(startLoc);
         }
         if (_endLoc.isMacroID()) {
-            _endLoc = SM->getSpellingLoc(_endLoc);
+            _endLoc = sm.getSpellingLoc(_endLoc);
         }
-        SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, *SM, lopt);
+        SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
+        // endLoc points to the character one after the end of the expression to be replaced.
+        // (void) memset((void *)complete_system_io_M, 0,
+        //                                           ^
+        // The problem is, that it also replaces the comma. So the solution to this problem is to
+        // Make endLoc2 point to one character before endLoc.
+        // (void) memset((void *)complete_system_io_M, 0,
+        //                                          ^
+        SourceLocation endLoc2 = endLoc.getLocWithOffset(-1);
 
-        if (!endLoc.isValid()) {
+        if (!endLoc2.isValid()) {
             outputExpression(varexp, errs(), startLoc);
-            errs() << "ERROR: Unable to find source location of the pointer use.\n";
+            errs() << "ERROR: Unable to find ending source location of the pointer use.\n";
             errs() << "\n\n";
             return;
         }
-        CharSourceRange range = CharSourceRange::getTokenRange(startLoc, endLoc);
-        Replacement pointer_use_rep(*SM, range, replacement);
+        CharSourceRange range = CharSourceRange::getTokenRange(startLoc, endLoc2);
+        Replacement pointer_use_rep(sm, range, replacement);
 
         if (Error err = (*replacements)[pointer_use_rep.getFilePath()].add(pointer_use_rep)) {
             outputExpression(varexp, errs(), startLoc);
@@ -208,7 +208,7 @@ void RemovePointerMatchCallback::replace_pointer_arrow(const MemberExpr* expr)
 
     // Get the type of the base expression, a pointer type.
     const QualType qualtype = baseExp->getType();
-    const PointerType* type = dyn_cast<PointerType>(qualtype.getTypePtr());
+    const auto* type = dyn_cast<PointerType>(qualtype.getTypePtr());
     // Get the type to which that pointer points to.
     const QualType pointeeType = type->getPointeeType();
     string type_string = pointeeType.getAsString();
@@ -318,15 +318,15 @@ void RemovePointerMatchCallback::replace_pointer_use_macro(const Expr* baseExp, 
     string replacement = "&";
     // Go past the parenthesis and implicit casts to get the DeclRefExpr.
     // This is the complete_system_io_M
-    const DeclRefExpr *varexpr = dyn_cast<DeclRefExpr>(baseExp->IgnoreParenImpCasts());
+    const auto *varexpr = dyn_cast<DeclRefExpr>(baseExp->IgnoreParenImpCasts());
     // These are temporary expressions that are only needed to compute the replacement string.
     // They are put in {} here, artificially scope delimited because after this point
     // we don't need them any more.
     {
         // Get the actual declaration of the global pointer.
-        const VarDecl *vardecl = dyn_cast<VarDecl>(varexpr->getDecl());
+        const auto *vardecl = dyn_cast<VarDecl>(varexpr->getDecl());
         // Get the right hand side of the operator =, which is &complete_system_io_M_
-        const UnaryOperator *init = dyn_cast<UnaryOperator>(vardecl->getInit());
+        const auto *init = dyn_cast<UnaryOperator>(vardecl->getInit());
         // Get the global struct, which is complete_system_io_M_
         const auto *global_struct = init->getSubExpr();
         replacement += getExprAsString(global_struct);
@@ -361,7 +361,6 @@ void RemovePointerMatchCallback::replace_pointer_use_macro(const Expr* baseExp, 
     // And the replacement that is prerformed in this situation is similar to the
     // replacement that is performed for a typical pointer use.
     ++num_pointer_uses;
-    return;
 }
 
 
@@ -370,7 +369,7 @@ void RemovePointerMatchCallback::replace_pointer_dereference(const Expr* baseExp
     LangOptions langopt;
     // This DeclRefExpr is the pointer variable which is used,
     // complete_system_io_M
-    const DeclRefExpr *varexpr = dyn_cast<DeclRefExpr>(baseExp->IgnoreParenImpCasts());
+    const auto *varexpr = dyn_cast<DeclRefExpr>(baseExp->IgnoreParenImpCasts());
     // The SourceLocation startLoc, and it's char* representation, start, both point
     // to the first character in the expression.
     // complete_system_io_M->Timing
@@ -409,9 +408,9 @@ void RemovePointerMatchCallback::replace_pointer_dereference(const Expr* baseExp
     // we don't need them any more.
     {
         // Get the actual declaration of the global pointer.
-        const VarDecl *vardecl = dyn_cast<VarDecl>(varexpr->getDecl());
+        const auto *vardecl = dyn_cast<VarDecl>(varexpr->getDecl());
         // Get the right hand side of the operator =, which is &complete_system_io_M_
-        const UnaryOperator *init = dyn_cast<UnaryOperator>(vardecl->getInit());
+        const auto *init = dyn_cast<UnaryOperator>(vardecl->getInit());
         // Get the global struct, which is complete_system_io_M_
         const auto *global_struct = init->getSubExpr();
         replacement += getExprAsString(global_struct);
@@ -435,7 +434,6 @@ void RemovePointerMatchCallback::replace_pointer_dereference(const Expr* baseExp
         outs() << "\n\n";
     }
     ++num_pointer_dereferences;
-    return;
 }
 
 

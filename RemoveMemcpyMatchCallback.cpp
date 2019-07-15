@@ -54,7 +54,7 @@ using clang::tok::semi;
 
 extern bool print_debug_output;  // defined in refactoring_tool.cpp
 
-void RemoveMemcpyMatchCallback::getASTmatchers(MatchFinder& mf) const
+void RemoveMemcpyMatchCallback::getASTmatchers(MatchFinder& mf)
 {
     // match all instances of:
     // (void) memcpy(/* ... */);
@@ -70,9 +70,8 @@ void RemoveMemcpyMatchCallback::getASTmatchers(MatchFinder& mf) const
     ).bind("memcpy_call");
 
     // &remove_memcpy_match_callback, is the address of the calling object == this
-    // The second argument should be of type (MatchFinder::MatchCallback *)
-    mf.addMatcher(memcpy_matcher, (MatchFinder::MatchCallback *) this);
-    mf.addMatcher(cast_memcpy_matcher, (MatchFinder::MatchCallback *) this);
+    mf.addMatcher(memcpy_matcher, this);
+    mf.addMatcher(cast_memcpy_matcher, this);
 }
 
 

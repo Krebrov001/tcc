@@ -63,8 +63,8 @@ void RemoveVariablesMatchCallback::run(const MatchFinder::MatchResult& result)
         // By replacing the declaration with "" we are efrectively deleting it from the source code.
         string replacement;
 
-        SourceLocation loc_start = variable_declaration->getLocStart();
-        SourceLocation loc_end   = variable_declaration->getLocEnd();
+        SourceLocation loc_start = variable_declaration->getBeginLoc();
+        SourceLocation loc_end   = variable_declaration->getEndLoc();
         // Get the location after the semicolon following the declaration of the unused variable.
         SourceLocation after_semi_loc = Lexer::findLocationAfterToken(loc_end, semi, *SM, LangOptions(), false);
         if (!after_semi_loc.isValid()) {
@@ -113,8 +113,8 @@ string RemoveVariablesMatchCallback::getDeclAsString(const Decl* declaration) co
     // https://stackoverflow.com/a/11154162/5500589
     LangOptions lopt;
 
-    SourceLocation startLoc = declaration->getLocStart();
-    SourceLocation _endLoc = declaration->getLocEnd();
+    SourceLocation startLoc = declaration->getBeginLoc();
+    SourceLocation _endLoc = declaration->getEndLoc();
     SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
 
     return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));

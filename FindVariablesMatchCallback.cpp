@@ -115,8 +115,8 @@ string FindVariablesMatchCallback::getDeclAsString(const Decl* declaration) cons
     // https://stackoverflow.com/a/11154162/5500589
     LangOptions lopt;
 
-    SourceLocation startLoc = declaration->getLocStart();
-    SourceLocation _endLoc = declaration->getLocEnd();
+    SourceLocation startLoc = declaration->getBeginLoc();
+    SourceLocation _endLoc = declaration->getEndLoc();
     SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
 
     return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
@@ -139,8 +139,8 @@ string FindVariablesMatchCallback::getExprAsString(const Expr* expression) const
     // invalid, which will in turn create an invalid length of string, causing
     // std::length_error to be thrown. Perhaps this is due to the passed in expression
     // being inside of a macro expansion.
-    SourceLocation startLoc = sm.getFileLoc(expression->getLocStart());
-    SourceLocation _endLoc = sm.getFileLoc(expression->getLocEnd());
+    SourceLocation startLoc = sm.getFileLoc(expression->getBeginLoc());
+    SourceLocation _endLoc = sm.getFileLoc(expression->getEndLoc());
     SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
     size_t string_length = sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc);
 

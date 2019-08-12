@@ -58,8 +58,8 @@ void RemoveHypotMatchCallback::run(const MatchFinder::MatchResult& result)
         string replacement = "sqrt( (" + string_x + ") * (" + string_x + ") + (" +
                              string_y + ") * (" + string_y + ") )";
 
-        SourceLocation startLoc = hypot_call->getLocStart();
-        SourceLocation endLoc = hypot_call->getLocEnd();
+        SourceLocation startLoc = hypot_call->getBeginLoc();
+        SourceLocation endLoc = hypot_call->getEndLoc();
         CharSourceRange range = CharSourceRange::getTokenRange(startLoc, endLoc);
 
         /* Performing the actual replacement, replacing the source code text. */
@@ -89,7 +89,7 @@ string RemoveHypotMatchCallback::getArgAsString(const Expr* arg, char end) const
 {
     // Now the SourceLocation loc_start, and it's underlying const char* are both pointing
     // to the start of the argument.
-    SourceLocation loc_start = arg->getLocStart();
+    SourceLocation loc_start = arg->getBeginLoc();
     const char* start = SM->getCharacterData(loc_start);
     // We need to calculate the length of the argument, the number of characters it has.
     // An argument ends either with ',' or ')' (if it is the last one).
@@ -109,8 +109,8 @@ string RemoveHypotMatchCallback::getArgAsString(const Expr* arg, char end) const
 
 void RemoveHypotMatchCallback::outputExpression(const CallExpr* expr, raw_ostream& output)
 {
-    SourceLocation loc_start = expr->getLocStart();
-    SourceLocation loc_end = expr->getLocEnd();
+    SourceLocation loc_start = expr->getBeginLoc();
+    SourceLocation loc_end = expr->getEndLoc();
 
     output << string(SM->getCharacterData(loc_start), SM->getCharacterData(loc_end) - SM->getCharacterData(loc_start));
     output << ")\n";

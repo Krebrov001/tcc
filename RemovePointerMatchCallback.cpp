@@ -97,9 +97,9 @@ void RemovePointerMatchCallback::remove_global_pointer(const Decl* decl)
 {
     string replacement;
 
-    SourceLocation loc_start = decl->getLocStart();
+    SourceLocation loc_start = decl->getBeginLoc();
     // Get the location after the semicolon following the declaration of complete_system_io_M.
-    SourceLocation after_semi_loc = Lexer::findLocationAfterToken(decl->getLocEnd(), semi, *SM, LangOptions(), false);
+    SourceLocation after_semi_loc = Lexer::findLocationAfterToken(decl->getEndLoc(), semi, *SM, LangOptions(), false);
     if (!after_semi_loc.isValid()) {
         outputDeclaration(decl, errs(), loc_start);
         errs() << "ERROR: Unable to find source location of the declaration of complete_system_io_M.\n";
@@ -130,7 +130,7 @@ void RemovePointerMatchCallback::replace_pointer_use(const Expr* expr)
     // References are easier to work with than pointers.
     const SourceManager &sm = *SM;
 
-    SourceLocation loc_start = expr->getLocStart();
+    SourceLocation loc_start = expr->getBeginLoc();
 
     string replacement = "&";
     if ( auto varexp = dyn_cast<DeclRefExpr>(expr) ) {
@@ -148,8 +148,8 @@ void RemovePointerMatchCallback::replace_pointer_use(const Expr* expr)
         /* Performing the actual replacement, replacing the source code text. */
 
         LangOptions lopt;
-        SourceLocation startLoc = sm.getFileLoc(varexp->getLocStart());
-        SourceLocation _endLoc = sm.getFileLoc(varexp->getLocEnd());
+        SourceLocation startLoc = sm.getFileLoc(varexp->getBeginLoc());
+        SourceLocation _endLoc = sm.getFileLoc(varexp->getEndLoc());
         if (startLoc.isMacroID()) {
             startLoc = sm.getSpellingLoc(startLoc);
         }
@@ -203,7 +203,7 @@ void RemovePointerMatchCallback::replace_pointer_arrow(const MemberExpr* expr)
     // The base expression of the member expression is the calling object,
     // in this case baseExp->something.
     const auto* baseExp = expr->getBase();
-    SourceLocation loc_start = baseExp->getLocStart();
+    SourceLocation loc_start = baseExp->getBeginLoc();
 
     // Get the type of the base expression, a pointer type.
     const QualType qualtype = baseExp->getType();
@@ -226,7 +226,7 @@ void RemovePointerMatchCallback::replace_pointer_arrow(const MemberExpr* expr)
 
         // This line of code will get where the macro is defined,
         // in complete_system_io_private.h
-        //loc_start = baseExp->getLocStart();
+        //loc_start = baseExp->getBeginLoc();
         //
         // This should be used for replacing the macro expansion location with the literal
         // text of the macro definition, like performing your own macro expansion immediately
@@ -234,7 +234,7 @@ void RemovePointerMatchCallback::replace_pointer_arrow(const MemberExpr* expr)
         // in this situation. The refactoring tool does the preprocessor's job.
 
         // This line of code will get to where the macro is expanded to, without the expansion.
-        loc_start = SM->getFileLoc(baseExp->getLocStart());
+        loc_start = SM->getFileLoc(baseExp->getBeginLoc());
         // The above code will either return the start of a macro call,
         // rtmIsMajorTimeStep(complete_system_io_M)
         // or it will return the start of an arrow expression,
@@ -244,7 +244,7 @@ void RemovePointerMatchCallback::replace_pointer_arrow(const MemberExpr* expr)
         // The macro call is still expanded by the preprocessor because it is left untouched.
 
         // This code gets the end of the above expression.
-        SourceLocation loc_end = SM->getFileLoc(baseExp->getLocEnd());
+        SourceLocation loc_end = SM->getFileLoc(baseExp->getEndLoc());
 
         // loc1 is the location directly following the '(' after the end of the token.
         // So if we have:
@@ -335,7 +335,7 @@ void RemovePointerMatchCallback::replace_pointer_use_macro(const Expr* baseExp, 
 
     Replacement pointer_use_macro_rep(*SM, range, replacement);
     if (Error err = (*replacements)[pointer_use_macro_rep.getFilePath()].add(pointer_use_macro_rep)) {
-        outputExpression(varexpr, errs(), varexpr->getLocStart());
+        outputExpression(varexpr, errs(), varexpr->getBeginLoc());
         errs() << "ERROR: Error adding replacement that replaces the pointer use with address of structure.\n";
         errs() << "\n\n";
         return;
@@ -343,7 +343,7 @@ void RemovePointerMatchCallback::replace_pointer_use_macro(const Expr* baseExp, 
     if (print_debug_output) {
         //outputExpression(baseExp, outs(), loc_start);
         //outs() << '(';
-        outputExpression(varexpr, outs(), varexpr->getLocStart());
+        outputExpression(varexpr, outs(), varexpr->getBeginLoc());
         outs() << "replaced with:\n" << replacement << '\n';
         outs() << "\n\n";
     }
@@ -367,7 +367,7 @@ void RemovePointerMatchCallback::replace_pointer_dereference(const Expr* baseExp
     // to the first character in the expression.
     // complete_system_io_M->Timing
     // ^
-    SourceLocation startLoc = varexpr->getLocStart();
+    SourceLocation startLoc = varexpr->getBeginLoc();
     const char* start = SM->getCharacterData(startLoc);
 
     /* We need to get the text to replace:
@@ -478,11 +478,11 @@ string RemovePointerMatchCallback::getExprAsString(const Expr* expression) const
     // https://stackoverflow.com/a/39598930/5500589
     LangOptions lopt;
     // Get the source range and manager.
-    //SourceLocation startLoc = expression->getLocStart();
-    //SourceLocation _endLoc = expression->getLocEnd();
+    //SourceLocation startLoc = expression->getBeginLoc();
+    //SourceLocation _endLoc = expression->getEndLoc();
 
-    SourceLocation startLoc = sm.getFileLoc(expression->getLocStart());
-    SourceLocation _endLoc = sm.getFileLoc(expression->getLocEnd());
+    SourceLocation startLoc = sm.getFileLoc(expression->getBeginLoc());
+    SourceLocation _endLoc = sm.getFileLoc(expression->getEndLoc());
     if (startLoc.isMacroID()) {
         startLoc = sm.getSpellingLoc(startLoc);
     }
@@ -504,8 +504,8 @@ string RemovePointerMatchCallback::getDeclAsString(const Decl* declaration) cons
     // https://stackoverflow.com/a/11154162/5500589
     LangOptions lopt;
 
-    SourceLocation startLoc = declaration->getLocStart();
-    SourceLocation _endLoc = declaration->getLocEnd();
+    SourceLocation startLoc = declaration->getBeginLoc();
+    SourceLocation _endLoc = declaration->getEndLoc();
     SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
 
     return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));

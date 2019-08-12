@@ -10,16 +10,36 @@
 #include "RemoveMemcpyMatchCallback.h"
 #include "RemovePointerMatchCallback.h"
 #include "RemoveVariablesMatchCallback.h"
+#include "RemoveAssignmentMatchCallback.h"
+#include "StaticAnalysisDiagnosticConsumer.h"
+#include "StaticAnalysisUtils.h"
 
-// Header files for Clang libraries.
+// Header files for Clang and LLVM libraries.
 #include "clang/ASTMatchers/ASTMatchFinder.h"
+#include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Refactoring.h"
+#include "clang-tidy/ClangTidy.h"
+#include "clang-tidy/ClangTidyModule.h"
 #include "llvm/Support/CommandLine.h"
+
+#include <string>
+#include <map>
+#include <utility>  // for std::pair
+#include <vector>
+
+using std::string;
+using std::map;
+using std::vector;
+using std::pair;
 
 using llvm::outs;
 using llvm::errs;
 using llvm::raw_ostream;
 using llvm::report_fatal_error;
+using llvm::IntrusiveRefCntPtr;
+
+using llvm::vfs::OverlayFileSystem;
+using llvm::vfs::getRealFileSystem;
 
 using llvm::cl::opt;
 using llvm::cl::desc;
@@ -30,11 +50,22 @@ using llvm::cl::ValueRequired;
 using llvm::cl::SetVersionPrinter;
 using llvm::cl::ParseCommandLineOptions;
 
+using clang::DiagnosticsEngine;
+using clang::PCHContainerOperations;
+using clang::DiagnosticIDs;
+using clang::DiagnosticOptions;
+
+using clang::tooling::ClangTool;
 using clang::tooling::RefactoringTool;
 using clang::tooling::newFrontendActionFactory;
 using clang::tooling::CompilationDatabase;
 using clang::tooling::FixedCompilationDatabase;
+
 using clang::ast_matchers::MatchFinder;
+
+using clang::tidy::ClangTidyContext;
+using clang::tidy::ClangTidyOptionsProvider;
+
 
 /* Command line options description: */
 
@@ -43,21 +74,22 @@ using clang::ast_matchers::MatchFinder;
 // This line of code has to be above the ParseCommandLineOptions function call, otherwise
 // it will fail to parse the -debug option out, and the refactoring_tool executable will
 // fail to recognize that command line option.
-opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
+llvm::cl::opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
 
 // Options to turn on various refactorings are optional.
-opt<bool> RunAll("all", desc("This options turns on all supported refactorings."));
-opt<bool> RunRemoveMemcpy("remove-memcpy", desc("This option turns on replacement of memcpy()."));
-opt<bool> RunMakeStatic("make-static", desc("This option turns all dynamic memory allocations "
+llvm::cl::opt<bool> RunAll("all", desc("This options turns on all supported refactorings."));
+llvm::cl::opt<bool> RunRemoveMemcpy("remove-memcpy", desc("This option turns on replacement of memcpy()."));
+llvm::cl::opt<bool> RunMakeStatic("make-static", desc("This option turns all dynamic memory allocations "
                                             "into stack ones, gets rid of calloc() and free()."));
-opt<bool> RunRemovePointer("remove-pointer", desc("This option turns on removal of the global pointer."));
-opt<bool> RunRemoveHypot("remove-hypot", desc("This option turns on replacement of hypot()."));
-opt<bool> RunRemoveVariables("remove-variables", desc("This option removes unreferenced variables."));
+llvm::cl::opt<bool> RunRemovePointer("remove-pointer", desc("This option turns on removal of the global pointer."));
+llvm::cl::opt<bool> RunRemoveHypot("remove-hypot", desc("This option turns on replacement of hypot()."));
+llvm::cl::opt<bool> RunRemoveVariables("remove-variables", desc("This option removes unreferenced variables."));
+llvm::cl::opt<bool> RunRemoveAssignment("remove-assignment", desc("This option removes unreferenced assignments."));
 
 // Option specifies the build path/directory.
-opt<string> BuildPath(Positional, desc("[<build-path>]"));
+llvm::cl::opt<string> BuildPath(Positional, desc("[<build-path>]"));
 // Options specifying the source files to refactor are one or more required.
-opt<string> SourcePaths(Positional, desc("<source0> [... <sourceN>]"), OneOrMore, ValueRequired);
+llvm::cl::list<string> SourcePaths(Positional, desc("<source0> [... <sourceN>]"), OneOrMore, ValueRequired);
 
 // Define an additional help message to be printed.
 extrahelp CommonHelp(
@@ -70,16 +102,16 @@ extrahelp CommonHelp(
 bool print_debug_output = false;
 
 
-int main(int argc, const char **argv)
-{
-	// Format should be:
-	// $ refactoring_tool tool_specific options -- clang_specific_options (not used)
+
+int main(int argc, const char **argv) {
+    // Format should be:
+    // $ refactoring_tool tool_specific options -- clang_specific_options (not used)
     //  OR
     // $ refactoring_tool [options] [<build-path>] <source0> [... <sourceN>] --
-	// By default, input file(s) are treated as positional arguments of the tool-specific part
+    // By default, input file(s) are treated as positional arguments of the tool-specific part
     // of the options.
 
-	/* Command line parsing: */
+    /* Command line parsing: */
 
     // Define the information to be printed with the -version option.
     // Use a C++11 lambda function as the VersionPrinterTy func parameter to SetVersionPrinter().
@@ -93,8 +125,8 @@ int main(int argc, const char **argv)
         }
     );
 
-	// Parses the command line arguments for you.
-	ParseCommandLineOptions(argc, argv);
+    // Parses the command line arguments for you.
+    ParseCommandLineOptions(argc, argv);
     string ErrorMessage;
 
     // Try to build a compilation datavase directly from the command-line.
@@ -126,14 +158,79 @@ int main(int argc, const char **argv)
 
     // If the user specified -all option, then all refactorings should be enabled.
     if (RunAll) {
-        RunRemoveMemcpy    = true;
-        RunMakeStatic      = true;
-        RunRemovePointer   = true;
-        RunRemoveHypot     = true;
-        RunRemoveVariables = true;
+        RunRemoveMemcpy     = true;
+        RunMakeStatic       = true;
+        RunRemovePointer    = true;
+        RunRemoveHypot      = true;
+        RunRemoveVariables  = true;
+        RunRemoveAssignment = true;
     }
 
-	/* Run the Clang compiler for the each input file separately
+    // Utilities for managing the file system inside of clang-tidy.
+    // llvm::IntrusiveRefCntPtr is a reference-counted smart pointer.
+    // vfs::OverlayFileSystem is an implementation of OverlayFS.
+    // vfs::getRealFileSystem() returns a
+    //   static IntrusiveRefCntPtr<FileSystem> FS(new RealFileSystem(true))
+    IntrusiveRefCntPtr<OverlayFileSystem> BaseFS(
+        new OverlayFileSystem(getRealFileSystem())
+    );
+
+    // createOptionsProvider() returns a static std::unique_ptr< ClangTidyOptionsProvider >
+    // ClangTidyOptionsProvider is an abstract interface for retrieving various ClangTidy options.
+    auto OwningOptionsProvider = createOptionsProvider(BaseFS);
+
+    // std::unique_ptr::get() returns the raw pointer, ClangTidyOptionsProvider*
+    // So I want to use the ease of access features (syntactic and semantic) of raw pointer,
+    // but I also want to keep the smart pointer to automatically dispose of the dynamic object
+    // after it's lifetime expires.
+    auto *OptionsProvider = OwningOptionsProvider.get();
+
+    // If the pointer is null.
+    if (!OptionsProvider)
+        return 1;
+
+    bool AllowEnablingAnalyzerAlphaCheckers = false;
+
+    // Every ClangTidyCheck reports errors through a DiagnosticsEngine provided by this context.
+    // This context takes two parameters: the smart pointer to the ClangTidyOptionsProvider, a bool
+    // whether we want to enable experimental alpha checkers from the static analyzer (false).
+    ClangTidyContext Context(std::move(OwningOptionsProvider), AllowEnablingAnalyzerAlphaCheckers);
+
+    ClangTool Tool(*Compilations, SourcePaths,
+                   std::make_shared<PCHContainerOperations>(), BaseFS);
+
+    /// StaticAnalysisDiagnosticConsumer is a diagnostic consumer that collects diagnostics from
+    /// the Static Analyzer.
+    StaticAnalysisDiagnosticConsumer DiagConsumer(Context);
+
+    /// A DiagnosticsEngine provides a way to report a diagnostic via its Report method
+    ///   and then to allow configuration of various “meta” aspects of diagnostic reporting,
+    ///   such as what diagnostics will be suppressed, whether warnings should show as errors, etc.
+    DiagnosticsEngine DE(new DiagnosticIDs(), new DiagnosticOptions(),
+                         &DiagConsumer, /*ShouldOwnClient=*/false);
+
+    // Add the DiagnosticsEngine to the ClangTidyContext.
+    /// Every ClangTidyCheck reports errors through a DiagnosticsEngine provided by this context.
+    //
+    /// Sets the DiagnosticsEngine that diag() will emit diagnostics to.
+    ///   This allows our checks to send us diagnostics.
+    Context.setDiagnosticsEngine(&DE);
+
+    // Set a DiagnosticConsumer to the ClangTool to use during parsing.
+    Tool.setDiagnosticConsumer(&DiagConsumer);
+
+    // Create a custom ActionFactory.
+    ActionFactory Factory(Context, BaseFS);
+
+    // Runs an action over all files specified in the command line (like RefactoringTool).
+    // Fills up the DiagnosticConsumer with the information.
+    auto result = Tool.run(&Factory);
+    if (result != 0) {
+		errs() << "Error in the Clang Tool or Static Analyzer: " << result << "\n";
+		return result;
+	}
+
+    /* Run the Clang compiler for the each input file separately
      * (one input file - one output file).
      *	This is default ClangTool behaviour.
 	 */
@@ -141,17 +238,10 @@ int main(int argc, const char **argv)
 	// The second argument is a list of source files to parse.
 	RefactoringTool tool(*Compilations, SourcePaths);
 
-    if (print_debug_output) {
-	    outs() << "Starting match finder\n";
-        outs() << "\n\n";
-    }
-
     // This first MatchFinder is responsible for applying replacements in the first round.
 	MatchFinder mf;
 
-    /* Only add the AST matchers if the options enabling these refactorings are activated. */
-
-	//// Remove memcpy details
+    //// Remove memcpy details
 	// Make the RemoveMemcpyMatchCallback class be able to recieve the match results.
 	RemoveMemcpyMatchCallback remove_memcpy_match_callback(&tool.getReplacements());
     if (RunRemoveMemcpy) {
@@ -184,12 +274,19 @@ int main(int argc, const char **argv)
         find_variables_match_callback.getASTmatchers(mf);
     }
 
-	// Run the tool
-	auto result = tool.runAndSave(newFrontendActionFactory(&mf).get());
-	if (result != 0) {
-		errs() << "Error in the Refactoring Tool: " << result << "\n";
-		return result;
-	}
+    //// Remove Assignment details
+    // This CallBack class gets the results from the DiagConsumer, and does the replacements.
+    RemoveAssignmentMatchCallback analysis_match_callback(&tool.getReplacements(), DiagConsumer.getSourcePairs());
+    if (RunRemoveAssignment) {
+        analysis_match_callback.getASTmatchers(mf);
+    }
+
+    // Run the RefactoringTool.
+    auto result1 = tool.runAndSave(newFrontendActionFactory(&mf).get());
+    if (result1 != 0) {
+        errs() << "Error in the Refactoring Tool: " << result1 << "\n";
+        return result1;
+    }
 
     // Create a second RefactoringTool to run the second round of refactorings.
     // The first argument is a list of compilations.
@@ -263,6 +360,12 @@ int main(int argc, const char **argv)
             unsigned int num_unused_variables = remove_variables_match_callback.getNumUnusedVariableRemovals();
             num_refactorings += num_unused_variables;
             outs() << "Removed " << num_unused_variables << " unused variables.\n";
+        }
+
+        if (RunRemoveAssignment) {
+            unsigned int num_unused_assignments = analysis_match_callback.getNumAssignmentRemovals();
+            num_refactorings += num_unused_assignments;
+            outs() << "Removed " << num_unused_assignments << " unused assignments.\n";
         }
 
         outs() << '\n' << "Performed " << num_refactorings << " total refactorings\n";

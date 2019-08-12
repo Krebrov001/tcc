@@ -96,10 +96,10 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
         // dynamic_cast it into a const CallExpr*
         // The sub expression of a cast expression is the expression that you're trying to cast.
         call_expr = dyn_cast<const CallExpr>(cast_expr->getSubExpr());
-        loc_start = cast_expr->getLocStart();
+        loc_start = cast_expr->getBeginLoc();
     } else {
         call_expr = result.Nodes.getNodeAs<CallExpr>("memcpy_call");
-        loc_start = call_expr->getLocStart();
+        loc_start = call_expr->getBeginLoc();
     }
 
     // if we succeeded getting a CallExpr out of the result.
@@ -219,7 +219,7 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
         }
 
         // Get the location after the semicolon following the memcpy() call
-        SourceLocation after_semi_loc = Lexer::findLocationAfterToken(call_expr->getLocEnd(), semi, *SM, LangOptions(), false);
+        SourceLocation after_semi_loc = Lexer::findLocationAfterToken(call_expr->getEndLoc(), semi, *SM, LangOptions(), false);
         if (!after_semi_loc.isValid()) {
             outputExpression(call_expr, errs(), loc_start);
             errs() << "ERROR: Unable to find semicolon location after memcpy() call.\n";
@@ -263,8 +263,8 @@ string RemoveMemcpyMatchCallback::getExprAsString(const Expr* expression) const
     // https://stackoverflow.com/a/37963981/5500589
     LangOptions lopt;
     // Get the source range and manager.
-    SourceLocation startLoc = expression->getLocStart();
-    SourceLocation _endLoc = expression->getLocEnd();
+    SourceLocation startLoc = expression->getBeginLoc();
+    SourceLocation _endLoc = expression->getEndLoc();
     SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
 
     // Use LLVM's lexer to get source text.

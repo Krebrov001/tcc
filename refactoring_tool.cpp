@@ -102,7 +102,6 @@ extrahelp CommonHelp(
 bool print_debug_output = false;
 
 
-
 int main(int argc, const char **argv) {
     // Format should be:
     // $ refactoring_tool tool_specific options -- clang_specific_options (not used)
@@ -120,7 +119,7 @@ int main(int argc, const char **argv) {
         [](raw_ostream& os) {
             const string version_information = "McLeod Refactoring Tool\n"
                                                "By Konstantin Rebrov\n"
-                                               "development version 2.5\n";
+                                               "development version 6.1\n";
             os << version_information;
         }
     );
@@ -166,6 +165,8 @@ int main(int argc, const char **argv) {
         RunRemoveAssignment = true;
     }
 
+    /* Setup and run the Static Analyzer. */
+
     // Utilities for managing the file system inside of clang-tidy.
     // llvm::IntrusiveRefCntPtr is a reference-counted smart pointer.
     // vfs::OverlayFileSystem is an implementation of OverlayFS.
@@ -201,7 +202,7 @@ int main(int argc, const char **argv) {
 
     /// StaticAnalysisDiagnosticConsumer is a diagnostic consumer that collects diagnostics from
     /// the Static Analyzer.
-    StaticAnalysisDiagnosticConsumer DiagConsumer(Context);
+    StaticAnalysisDiagnosticConsumer DiagConsumer;
 
     /// A DiagnosticsEngine provides a way to report a diagnostic via its Report method
     ///   and then to allow configuration of various “meta” aspects of diagnostic reporting,
@@ -222,48 +223,74 @@ int main(int argc, const char **argv) {
     // Create a custom ActionFactory.
     ActionFactory Factory(Context, BaseFS);
 
-    // Runs an action over all files specified in the command line (like RefactoringTool).
+    // Runs the Static Analyzer over all files specified in the command line (like RefactoringTool).
     // Fills up the DiagnosticConsumer with the information.
     auto result = Tool.run(&Factory);
     if (result != 0) {
-		errs() << "Error in the Clang Tool or Static Analyzer: " << result << "\n";
+		errs() << "Error in running the Static Analyzer: " << result << "\n";
 		return result;
 	}
 
+    /* Setup and run the first round of refactorings. */
+
     /* Run the Clang compiler for the each input file separately
      * (one input file - one output file).
-     *	This is default ClangTool behaviour.
+     *	This is default RefactoringTool behaviour.
 	 */
 	// The first argument is a list of compilations.
 	// The second argument is a list of source files to parse.
-	RefactoringTool tool(*Compilations, SourcePaths);
+	RefactoringTool tool1(*Compilations, SourcePaths);
 
-    // This first MatchFinder is responsible for applying replacements in the first round.
-	MatchFinder mf;
+    // This first MatchFinder is responsible for applying refactorings in the first round.
+	MatchFinder mf1;
+
+    //// Remove Assignment details
+    // This CallBack class gets the results from the DiagConsumer, and does the replacements.
+    RemoveAssignmentMatchCallback analysis_match_callback(&tool1.getReplacements(), DiagConsumer.getSourcePairs());
+    if (RunRemoveAssignment) {
+        analysis_match_callback.getASTmatchers(mf1);
+    }
+
+    // Run the RefactoringTool to perform the first round of refactorings.
+    auto result1 = tool1.runAndSave(newFrontendActionFactory(&mf1).get());
+    if (result1 != 0) {
+        errs() << "Error in the first round of refactorings: " << result1 << "\n";
+        return result1;
+    }
+
+    /* Setup and run the second round of refactorings. */
+
+    // Create a second RefactoringTool to run the second round of refactorings.
+    // The first argument is a list of compilations.
+	// The second argument is a list of source files to parse.
+	RefactoringTool tool2(*Compilations, SourcePaths);
+    // Create a second MatchFinder to run the new RefactoringTool through the source code again,
+    // to apply refactorings in the second round.
+    MatchFinder mf2;
 
     //// Remove memcpy details
 	// Make the RemoveMemcpyMatchCallback class be able to recieve the match results.
-	RemoveMemcpyMatchCallback remove_memcpy_match_callback(&tool.getReplacements());
+	RemoveMemcpyMatchCallback remove_memcpy_match_callback(&tool2.getReplacements());
     if (RunRemoveMemcpy) {
-	    remove_memcpy_match_callback.getASTmatchers(mf);
+	    remove_memcpy_match_callback.getASTmatchers(mf2);
     }
 
 	//// Make static details
-	MakeStaticMatchCallback make_static_match_callback(&tool.getReplacements());
+	MakeStaticMatchCallback make_static_match_callback(&tool2.getReplacements());
     if (RunMakeStatic) {
-	    make_static_match_callback.getASTmatchers(mf);
+	    make_static_match_callback.getASTmatchers(mf2);
     }
 
     //// Remove pointer details
-    RemovePointerMatchCallback remove_pointer_match_callback(&tool.getReplacements());
+    RemovePointerMatchCallback remove_pointer_match_callback(&tool2.getReplacements());
     if (RunRemovePointer) {
-        remove_pointer_match_callback.getASTmatchers(mf);
+        remove_pointer_match_callback.getASTmatchers(mf2);
     }
 
     //// Remove hypot details
-    RemoveHypotMatchCallback remove_hypot_match_callback(&tool.getReplacements());
+    RemoveHypotMatchCallback remove_hypot_match_callback(&tool2.getReplacements());
     if (RunRemoveHypot) {
-        remove_hypot_match_callback.getASTmatchers(mf);
+        remove_hypot_match_callback.getASTmatchers(mf2);
     }
 
     //// Remove variables details
@@ -271,34 +298,29 @@ int main(int argc, const char **argv) {
     // FindVariablesMatchCallback does not do any replacements, it only counts the variables.
     FindVariablesMatchCallback find_variables_match_callback;
     if (RunRemoveVariables) {
-        find_variables_match_callback.getASTmatchers(mf);
+        find_variables_match_callback.getASTmatchers(mf2);
     }
 
-    //// Remove Assignment details
-    // This CallBack class gets the results from the DiagConsumer, and does the replacements.
-    RemoveAssignmentMatchCallback analysis_match_callback(&tool.getReplacements(), DiagConsumer.getSourcePairs());
-    if (RunRemoveAssignment) {
-        analysis_match_callback.getASTmatchers(mf);
+    // Run the RefactoringTool to perform the second round of refactorings.
+    auto result2 = tool2.runAndSave(newFrontendActionFactory(&mf2).get());
+    if (result2 != 0) {
+        errs() << "Error in the second round of refactorings: " << result2 << "\n";
+        return result2;
     }
 
-    // Run the RefactoringTool.
-    auto result1 = tool.runAndSave(newFrontendActionFactory(&mf).get());
-    if (result1 != 0) {
-        errs() << "Error in the Refactoring Tool: " << result1 << "\n";
-        return result1;
-    }
+    /* Setup and run the third round of refactorings. */
 
-    // Create a second RefactoringTool to run the second round of refactorings.
+    // Create a third RefactoringTool to run the third round of refactorings.
     // The first argument is a list of compilations.
 	// The second argument is a list of source files to parse.
-	RefactoringTool tool2(*Compilations, SourcePaths);
-    // Create a second MatchFinder to run the new RefactoringTool through the source code again,
-    // to apply replacements in the second round, mainly RemoveVariablesMatchCallback.
-    MatchFinder mf2;
+	RefactoringTool tool3(*Compilations, SourcePaths);
+    // Create a third MatchFinder to run the new RefactoringTool through the source code again,
+    // to apply refactorings in the second round, mainly RemoveVariablesMatchCallback.
+    MatchFinder mf3;
 
     //// Remove variables details
     // This one actually removes the variables.
-    RemoveVariablesMatchCallback remove_variables_match_callback(&tool.getReplacements());
+    RemoveVariablesMatchCallback remove_variables_match_callback(&tool3.getReplacements());
     if (RunRemoveVariables) {
         /* These Step 1 and Step 2 MUST be called in this order ALWAYS! */
 
@@ -307,17 +329,18 @@ int main(int argc, const char **argv) {
         find_variables_match_callback.collectResults(remove_variables_match_callback.getVector());
 
         // Step 2: Get the AST matchers describing them.
-        remove_variables_match_callback.getASTmatchers(mf2);
+        remove_variables_match_callback.getASTmatchers(mf3);
     }
 
-    // Run the new Refactoring Tool to apply replacements in the second round.
-	auto result2 = tool2.runAndSave(newFrontendActionFactory(&mf2).get());
-	if (result2 != 0) {
-	    errs() << "Error in the Refactoring Tool: " << result2 << "\n";
-	    return result2;
+    // Run the new Refactoring Tool to apply refactorings in the third round.
+	auto result3 = tool3.runAndSave(newFrontendActionFactory(&mf3).get());
+	if (result3 != 0) {
+	    errs() << "Error in the second round of refactorings: " << result3 << "\n";
+	    return result3;
     }
 
-    // Print diagnostic output.
+    /* Print diagnostic output and final statistics about the performed refactorings. */
+
     if (print_debug_output) {
         unsigned int num_refactorings = 0;
 

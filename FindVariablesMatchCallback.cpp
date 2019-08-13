@@ -34,6 +34,7 @@ using clang::Lexer;
 
 extern bool print_debug_output;  // defined in refactoring_tool.cpp
 
+
 void FindVariablesMatchCallback::getASTmatchers(MatchFinder& mf)
 {
     // isExpansionInMainFile() is needed to grab only the variables that are declared in the main
@@ -63,8 +64,12 @@ void FindVariablesMatchCallback::run(const MatchFinder::MatchResult& result)
         variable_declarations.insert(variable_declaration->getName());
     } else if (auto* variable_use = result.Nodes.getNodeAs<DeclRefExpr>("variable_use")) {
         // Add the variable to the variable_uses list.
-        auto vardecl = dyn_cast<VarDecl>(variable_use->getDecl());
-        variable_uses.insert(vardecl->getName());
+        if (auto vardecl = dyn_cast<VarDecl>(variable_use->getDecl())) {
+            variable_uses.insert(vardecl->getName());
+        } else {
+            errs() << "ERROR: Could not identigy the variable use, VarDecl is null.\n";
+            errs() << "\n\n";
+        }
     } else {
         errs() << "ERROR: The matched expression is neither a VarDecl nor a DeclRefExpr.\n";
         errs() << "\n\n";

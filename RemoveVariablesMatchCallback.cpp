@@ -65,6 +65,7 @@ void RemoveVariablesMatchCallback::run(const MatchFinder::MatchResult& result)
 
         SourceLocation loc_start = variable_declaration->getBeginLoc();
         SourceLocation loc_end   = variable_declaration->getEndLoc();
+
         // Get the location after the semicolon following the declaration of the unused variable.
         SourceLocation after_semi_loc = Lexer::findLocationAfterToken(loc_end, semi, *SM, LangOptions(), false);
         if (!after_semi_loc.isValid()) {

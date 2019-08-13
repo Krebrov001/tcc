@@ -21,12 +21,9 @@ using clang::DiagnosticsEngine;
 using clang::SourceLocation;
 using clang::SourceManager;
 
-StaticAnalysisDiagnosticConsumer::StaticAnalysisDiagnosticConsumer(ClangTidyContext &Ctx, DiagnosticsEngine *ExternalDiagEngine)
-    : Context(Ctx), ExternalDiagEngine(ExternalDiagEngine) {}
 
 void StaticAnalysisDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel, const Diagnostic &Info)
 {
-    // My code!
     if (Info.getLocation().isValid() && Info.hasSourceManager()) {
         SourceLocation loc_start = Info.getLocation();
         SM = &Info.getSourceManager();
@@ -45,7 +42,7 @@ void StaticAnalysisDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level
 
         SourcePairs.push_back(make_pair(loc_start, loc_end));
     } else {
-        errs() << "The Diagnostic does not have a valid SourceLocation and/or SourceManager.\n";
+        errs() << "ERROR: The Diagnostic does not have a valid SourceLocation and/or SourceManager.\n";
         errs() << "\n\n";
     }
 }

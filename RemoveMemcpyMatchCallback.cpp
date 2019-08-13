@@ -104,7 +104,10 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
 
     // if we succeeded getting a CallExpr out of the result.
     if (call_expr != nullptr) {
-        string dst, src, size;  // strings are default constructed to ""
+        // strings are default constructed to ""
+        string dst;
+        string src;
+        string size;
 
         // NOTE: Do not rearrange the order of these three chunks of code!
         // This is important, the arguments of memcpy() are processed from left to right.

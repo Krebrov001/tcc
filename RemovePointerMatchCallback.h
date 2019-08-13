@@ -152,7 +152,7 @@ class RemovePointerMatchCallback : public MatchFinder::MatchCallback
     void replace_pointer_dereference(const Expr* baseExp);
 
     /**
-     * This function prints the full expression, the filename where this expression originated,
+     * This method prints the full expression, the filename where this expression originated,
      * the row number (line number), and the column number. It is used for diagnostic purposes.
      *
      * @param const Expr* expr - An expression. This pointer can point to an Expr object or an
@@ -185,7 +185,7 @@ class RemovePointerMatchCallback : public MatchFinder::MatchCallback
     void outputExpression(const Expr* expr, raw_ostream& output, const SourceLocation& loc_start, int numchars = -1) const;
 
     /**
-     * This function prints the full declaration, the filename where this expression originated,
+     * This method prints the full declaration, the filename where this expression originated,
      * the row number (line number), and the column number. It is used for diagnostic purposes.
      *
      * @param const Decl* decl - A declaration. This pointer can point to a Decl object or an

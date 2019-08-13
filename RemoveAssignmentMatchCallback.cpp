@@ -4,14 +4,8 @@
 #include "RemoveAssignmentMatchCallback.h"
 
 #include <string>
-#include <map>
-#include <utility>  // for std::pair
-#include <vector>
 
 using std::string;
-using std::map;
-using std::vector;
-using std::pair;
 
 using llvm::outs;
 using llvm::errs;
@@ -19,17 +13,14 @@ using llvm::Error;
 using llvm::raw_ostream;
 
 using clang::Decl;
-using clang::SourceManager;
 using clang::SourceLocation;
 using clang::CharSourceRange;
 
 using clang::tooling::Replacement;
-using clang::tooling::Replacements;
 
 using clang::ast_matchers::MatchFinder;
 using clang::ast_matchers::translationUnitDecl;
 using clang::ast_matchers::DeclarationMatcher;
-
 
 extern bool print_debug_output;  // defined in refactoring_tool.cpp
 
@@ -52,8 +43,8 @@ void RemoveAssignmentMatchCallback::run(const MatchFinder::MatchResult& result)
             SourceLocation loc_end   = SourcePair.second;
 
             CharSourceRange range = CharSourceRange::getTokenRange(loc_start, loc_end);
-            //std::string replacement("replace text");
-            std::string replacement;
+            //string replacement("replace text");
+            string replacement;
 
             /* Performing the actual replacement, replacing the source code text. */
             Replacement dead_code_rep(*SM, range, replacement);

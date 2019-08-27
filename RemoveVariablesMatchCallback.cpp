@@ -95,28 +95,3 @@ void RemoveVariablesMatchCallback::run(const MatchFinder::MatchResult& result)
         errs() << "\n\n";
     }
 }
-
-
-void RemoveVariablesMatchCallback::outputDeclaration(const Decl* decl, raw_ostream& output, const SourceLocation& loc_start) const
-{
-    output << getDeclAsString(decl) << '\n';
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
-}
-
-
-string RemoveVariablesMatchCallback::getDeclAsString(const Decl* declaration) const
-{
-    // References are easier to work with than pointers.
-    const SourceManager &sm = *SM;
-    // Source:
-    // https://stackoverflow.com/a/11154162/5500589
-    LangOptions lopt;
-
-    SourceLocation startLoc = declaration->getBeginLoc();
-    SourceLocation _endLoc = declaration->getEndLoc();
-    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
-
-    return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
-}

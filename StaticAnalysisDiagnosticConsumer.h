@@ -60,32 +60,7 @@ class StaticAnalysisDiagnosticConsumer : public DiagnosticConsumer {
      */
     SourceLocation getRealEnd(const SourceLocation& loc_end) const;
 
-    /**
-     * @param const SourceLocation* loc_start - The starting location of the code text.
-     *
-     * @param const SourceLocation* loc_end - The end location of the code text.
-     *
-     * @return string - A string representation of the code text between these two SourceLocations.
-     */
-    string getLocationsAsString(const SourceLocation& loc_start, const SourceLocation& loc_end) const;
-
-    /**
-     * Given two SourceLocations delimiting a source code text, This method prints that text,
-     * the filename where this code text originated, the row number (line number), and the column
-     * number. It is used for diagnostic purposes.
-     *
-     * @param const SourceLocation* loc_start - The starting location of the code text.
-     *
-     * @param const SourceLocation* loc_end - The end location of the code text.
-     *
-     * @param raw_ostream& output - A reference to an LLVM raw output stream, which is
-     *                     an extremely fast bulk output stream that can only output to a stream.
-     *                     Data can be written to a different destination depending on the value of
-     *                     this parameter. It can be llvm::outs(), llvm::errs(), or llvm::nulls().
-     *                     The reference is non-const because writing output to an instance of a
-     *                     stream class causes that object to be modified.
-     */
-    void outputExpression(const SourceLocation& loc_start, const SourceLocation& loc_end, raw_ostream& output) const;
+    /* Private member variables. */
 
     //ClangTidyContext &Context;
     //DiagnosticsEngine *ExternalDiagEngine;

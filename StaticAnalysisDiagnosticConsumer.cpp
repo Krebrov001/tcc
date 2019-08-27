@@ -38,6 +38,12 @@ void StaticAnalysisDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level
             return;
         }
 
+        // BUG: The below code has a problem:
+        // terminate called after throwing an instance of 'std::length_error'
+        //SourceLocation loc_end = Lexer::findLocationAfterToken(loc_start, semi, *SM, LangOptions(), false);
+
+        // Now this code does the same thing but it does not throw an exception.
+        // Now the bug is fixed.
         SourceLocation loc_end = getRealEnd(loc_start);
 
         SourcePairs.push_back(make_pair(loc_start, loc_end));
@@ -46,6 +52,7 @@ void StaticAnalysisDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level
         errs() << "\n\n";
     }
 }
+
 
 const vector< pair<SourceLocation, SourceLocation> >& StaticAnalysisDiagnosticConsumer::getSourcePairs() const
 {
@@ -64,18 +71,4 @@ SourceLocation StaticAnalysisDiagnosticConsumer::getRealEnd(const SourceLocation
     }
 
     return loc_end.getLocWithOffset(offset);
-}
-
-string StaticAnalysisDiagnosticConsumer::getLocationsAsString(const SourceLocation& loc_start, const SourceLocation& loc_end) const
-{
-    auto num_characters = SM->getCharacterData(loc_end) - SM->getCharacterData(loc_start);
-    return string(SM->getCharacterData(loc_start), num_characters);
-}
-
-void StaticAnalysisDiagnosticConsumer::outputExpression(const SourceLocation& loc_start, const SourceLocation& loc_end, llvm::raw_ostream& output) const
-{
-    output << getLocationsAsString(loc_start, loc_end) << '\n';
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
 }

@@ -1,6 +1,8 @@
 #ifndef REMOVE_HYPOT_MATCH_CALLBACK_H
 #define REMOVE_HYPOT_MATCH_CALLBACK_H
 
+#include "BaseMatchCallback.h"
+
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Core/Replacement.h"
 
@@ -20,7 +22,7 @@ using clang::tooling::Replacements;
 using clang::ast_matchers::MatchFinder;
 
 
-class RemoveHypotMatchCallback : public MatchFinder::MatchCallback
+class RemoveHypotMatchCallback : public BaseMatchCallback
 {
   public:
     /**
@@ -34,7 +36,7 @@ class RemoveHypotMatchCallback : public MatchFinder::MatchCallback
      *                                    refactoring process.
      */
     explicit RemoveHypotMatchCallback(map<string, Replacements> * replacements)
-      : replacements(replacements), SM(nullptr) {}
+      : replacements(replacements), BaseMatchCallback() {}
 
     /**
      * This method creates and "returns" the AST matchers that match expressions specifically
@@ -108,10 +110,6 @@ class RemoveHypotMatchCallback : public MatchFinder::MatchCallback
     /* Private member variables. */
 
     map<string, Replacements>* replacements;
-    // This class handles loading and caching of source files into memory.
-    // It is the middleman between the refactoring tool and the actual C source code which is
-    // being analyzed. This enables us to do source code replacements.
-    SourceManager* SM;
     unsigned int num_hypot_replacements{0};
 	// Add other variables here as needed.
 };

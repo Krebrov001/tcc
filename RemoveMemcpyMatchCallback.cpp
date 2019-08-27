@@ -249,32 +249,6 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
 }
 
 
-void RemoveMemcpyMatchCallback::outputExpression(const Expr* expr, raw_ostream& output, const SourceLocation& loc_start) const
-{
-    output << getExprAsString(expr) << '\n';
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
-}
-
-
-string RemoveMemcpyMatchCallback::getExprAsString(const Expr* expression) const
-{
-    // References are easier to work with than pointers.
-    const SourceManager &sm = *SM;
-    // Source:
-    // https://stackoverflow.com/a/37963981/5500589
-    LangOptions lopt;
-    // Get the source range and manager.
-    SourceLocation startLoc = expression->getBeginLoc();
-    SourceLocation _endLoc = expression->getEndLoc();
-    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
-
-    // Use LLVM's lexer to get source text.
-    return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
-}
-
-
 APInt RemoveMemcpyMatchCallback::getVal(const Expr *expr) const
 {
     APInt ret;

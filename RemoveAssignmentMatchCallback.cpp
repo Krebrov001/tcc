@@ -64,19 +64,3 @@ void RemoveAssignmentMatchCallback::run(const MatchFinder::MatchResult& result)
     }  // if
 
 }  // run()
-
-
-string RemoveAssignmentMatchCallback::getLocationsAsString(const SourceLocation& loc_start, const SourceLocation& loc_end) const
-{
-    auto num_characters = SM->getCharacterData(loc_end) - SM->getCharacterData(loc_start);
-    return string(SM->getCharacterData(loc_start), num_characters);
-}
-
-
-void RemoveAssignmentMatchCallback::outputExpression(const SourceLocation& loc_start, const SourceLocation& loc_end, raw_ostream& output) const
-{
-    output << getLocationsAsString(loc_start, loc_end) << '\n';
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
-}

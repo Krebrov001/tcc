@@ -1,6 +1,8 @@
 #ifndef REMOVE_ASSIGNMENT_MATCH_CALLBACK_H
 #define REMOVE_ASSIGNMENT_MATCH_CALLBACK_H
 
+#include "BaseMatchCallback.h"
+
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Core/Replacement.h"
 
@@ -22,7 +24,7 @@ using clang::SourceLocation;
 using clang::tooling::Replacements;
 using clang::ast_matchers::MatchFinder;
 
-class RemoveAssignmentMatchCallback : public MatchFinder::MatchCallback
+class RemoveAssignmentMatchCallback : public BaseMatchCallback
 {
   public:
     /**
@@ -46,7 +48,7 @@ class RemoveAssignmentMatchCallback : public MatchFinder::MatchCallback
      */
     explicit RemoveAssignmentMatchCallback(map<string, Replacements> * replacements,
                                    const vector< pair<SourceLocation, SourceLocation> >& OtherPairs)
-      : replacements(replacements), SM(nullptr), SourcePairs{}
+      : replacements(replacements), SourcePairs{}, BaseMatchCallback()
     {
         for (auto SourcePair : OtherPairs) {
             SourcePairs.push_back(SourcePair);
@@ -74,7 +76,7 @@ class RemoveAssignmentMatchCallback : public MatchFinder::MatchCallback
      *
      * @param const MatchResult& result - The matched result returned from the AST matcher.
      */
-    void run(const MatchFinder::MatchResult& result);
+    void run(const MatchFinder::MatchResult& result) override;
 
     /**
 	 * Returns the number of successful removals of unreferenced assignments.
@@ -82,40 +84,11 @@ class RemoveAssignmentMatchCallback : public MatchFinder::MatchCallback
 	unsigned int getNumAssignmentRemovals() const { return num_unused_assignments; }
 
   private:
-    /**
-     * @param const SourceLocation* loc_start - The starting location of the code text.
-     *
-     * @param const SourceLocation* loc_end - The end location of the code text.
-     *
-     * @return string - A string representation of the code text between these two SourceLocations.
-     */
-    string getLocationsAsString(const SourceLocation& loc_start, const SourceLocation& loc_end) const;
-
-    /**
-     * Given two SourceLocations delimiting a source code text, This method prints that text,
-     * the filename where this code text originated, the row number (line number), and the column
-     * number. It is used for diagnostic purposes.
-     *
-     * @param const SourceLocation* loc_start - The starting location of the code text.
-     *
-     * @param const SourceLocation* loc_end - The end location of the code text.
-     *
-     * @param raw_ostream& output - A reference to an LLVM raw output stream, which is
-     *                     an extremely fast bulk output stream that can only output to a stream.
-     *                     Data can be written to a different destination depending on the value of
-     *                     this parameter. It can be llvm::outs(), llvm::errs(), or llvm::nulls().
-     *                     The reference is non-const because writing output to an instance of a
-     *                     stream class causes that object to be modified.
-     */
-    void outputExpression(const SourceLocation& loc_start, const SourceLocation& loc_end, raw_ostream& output) const;
 
     /* Private member variables. */
 
     map<string, Replacements>* replacements;
-    // This class handles loading and caching of source files into memory.
-    // It is the middleman between the refactoring tool and the actual C source code which is
-    // being analyzed. This enables us to do source code replacements.
-    SourceManager* SM;
+
     // This is a vector of pairs of SourceLocations delimiting the starts and ends respectively
     // of code text which is to be removed from the source code.
     // This vector is recieved from the class StaticAnalysisDiagnosticConsumer, and it is initlaized

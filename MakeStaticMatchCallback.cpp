@@ -293,28 +293,8 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 }
 
 
-void MakeStaticMatchCallback::outputExpression(const Expr* expr, raw_ostream& output, const SourceLocation& loc_start) const
-{
-    output << getExprAsString(expr) << '\n';
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
-}
-
-
-void MakeStaticMatchCallback::outputDeclaration(const Decl* decl, raw_ostream& output, const SourceLocation& loc_start) const
-{
-    output << getDeclAsString(decl) << '\n';
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
-}
-
-
 string MakeStaticMatchCallback::getExprAsString(const Expr* expression) const
 {
-    // References are easier to work with than pointers.
-    const SourceManager &sm = *SM;
     // Sources:
     // https://stackoverflow.com/a/37963981/5500589
     // https://stackoverflow.com/a/32118182/5500589
@@ -324,32 +304,17 @@ string MakeStaticMatchCallback::getExprAsString(const Expr* expression) const
     //SourceLocation startLoc = expression->getBeginLoc();
     //SourceLocation _endLoc = expression->getEndLoc();
 
-    SourceLocation startLoc = sm.getFileLoc(expression->getBeginLoc());
-    SourceLocation _endLoc = sm.getFileLoc(expression->getEndLoc());
+    SourceLocation startLoc = SM->getFileLoc(expression->getBeginLoc());
+    SourceLocation _endLoc = SM->getFileLoc(expression->getEndLoc());
     if (startLoc.isMacroID()) {
-        startLoc = sm.getSpellingLoc(startLoc);
+        startLoc = SM->getSpellingLoc(startLoc);
     }
     if (_endLoc.isMacroID()) {
-        _endLoc = sm.getSpellingLoc(_endLoc);
+        _endLoc = SM->getSpellingLoc(_endLoc);
     }
-    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
+    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, *SM, lopt);
 
-    // Use LLVM's lexer to get source text.
-    return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
-}
+    unsigned int num_chars = SM->getCharacterData(endLoc) - SM->getCharacterData(startLoc);
 
-
-string MakeStaticMatchCallback::getDeclAsString(const Decl* declaration) const
-{
-    // References are easier to work with than pointers.
-    const SourceManager &sm = *SM;
-    // Source:
-    // https://stackoverflow.com/a/11154162/5500589
-    LangOptions lopt;
-
-    SourceLocation startLoc = declaration->getBeginLoc();
-    SourceLocation _endLoc = declaration->getEndLoc();
-    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
-
-    return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
+    return string(SM->getCharacterData(startLoc), num_chars);
 }

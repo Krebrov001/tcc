@@ -63,6 +63,7 @@ LDLIBS := \
 # Names of files used in this project.
 EXECUTABLE := refactoring_tool
 CXX_FILES  := refactoring_tool.cpp \
+              BaseMatchCallback.cpp \
               RemoveMemcpyMatchCallback.cpp \
 			  MakeStaticMatchCallback.cpp \
 			  RemovePointerMatchCallback.cpp \
@@ -94,13 +95,14 @@ $(addprefix $(BINDIR)/,$(EXECUTABLE)): $(EXECUTABLE)
 # File dependencies
 $(EXECUTABLE): $(O_FILES)
 refactoring_tool.o: refactoring_tool.cpp RemoveMemcpyMatchCallback.h MakeStaticMatchCallback.h
-RemoveMemcpyMatchCallback.o: RemoveMemcpyMatchCallback.cpp custom_exceptions.h RemoveMemcpyMatchCallback.h
-MakeStaticMatchCallback.o: MakeStaticMatchCallback.cpp MakeStaticMatchCallback.h
-RemovePointerMatchCallback.o: RemovePointerMatchCallback.cpp RemovePointerMatchCallback.h
-RemoveHypotMatchCallback.o: RemoveHypotMatchCallback.cpp RemoveHypotMatchCallback.h
-FindVariablesMatchCallback.o: FindVariablesMatchCallback.cpp FindVariablesMatchCallback.h
-RemoveVariablesMatchCallback.o: RemoveVariablesMatchCallback.cpp RemoveVariablesMatchCallback.h
-RemoveAssignmentMatchCallback.o: RemoveAssignmentMatchCallback.cpp RemoveAssignmentMatchCallback.h
+BaseMatchCallback.o: BaseMatchCallback.cpp BaseMatchCallback.h
+RemoveMemcpyMatchCallback.o: RemoveMemcpyMatchCallback.cpp custom_exceptions.h RemoveMemcpyMatchCallback.h BaseMatchCallback.h
+MakeStaticMatchCallback.o: MakeStaticMatchCallback.cpp MakeStaticMatchCallback.h BaseMatchCallback.h
+RemovePointerMatchCallback.o: RemovePointerMatchCallback.cpp RemovePointerMatchCallback.h BaseMatchCallback.h
+RemoveHypotMatchCallback.o: RemoveHypotMatchCallback.cpp RemoveHypotMatchCallback.h BaseMatchCallback.h
+FindVariablesMatchCallback.o: FindVariablesMatchCallback.cpp FindVariablesMatchCallback.h BaseMatchCallback.h
+RemoveVariablesMatchCallback.o: RemoveVariablesMatchCallback.cpp RemoveVariablesMatchCallback.h BaseMatchCallback.h
+RemoveAssignmentMatchCallback.o: RemoveAssignmentMatchCallback.cpp RemoveAssignmentMatchCallback.h BaseMatchCallback.h
 StaticAnalysisDiagnosticConsumer.o : StaticAnalysisDiagnosticConsumer.cpp StaticAnalysisDiagnosticConsumer.h
 
 

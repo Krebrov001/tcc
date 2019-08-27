@@ -127,9 +127,6 @@ void RemovePointerMatchCallback::remove_global_pointer(const Decl* decl)
 
 void RemovePointerMatchCallback::replace_pointer_use(const Expr* expr)
 {
-    // References are easier to work with than pointers.
-    const SourceManager &sm = *SM;
-
     SourceLocation loc_start = expr->getBeginLoc();
 
     string replacement = "&";
@@ -148,15 +145,15 @@ void RemovePointerMatchCallback::replace_pointer_use(const Expr* expr)
         /* Performing the actual replacement, replacing the source code text. */
 
         LangOptions lopt;
-        SourceLocation startLoc = sm.getFileLoc(varexp->getBeginLoc());
-        SourceLocation _endLoc = sm.getFileLoc(varexp->getEndLoc());
+        SourceLocation startLoc = SM->getFileLoc(varexp->getBeginLoc());
+        SourceLocation _endLoc = SM->getFileLoc(varexp->getEndLoc());
         if (startLoc.isMacroID()) {
-            startLoc = sm.getSpellingLoc(startLoc);
+            startLoc = SM->getSpellingLoc(startLoc);
         }
         if (_endLoc.isMacroID()) {
-            _endLoc = sm.getSpellingLoc(_endLoc);
+            _endLoc = SM->getSpellingLoc(_endLoc);
         }
-        SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
+        SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, *SM, lopt);
         // endLoc points to the character one after the end of the expression to be replaced.
         // (void) memset((void *)complete_system_io_M, 0,
         //                                           ^
@@ -173,7 +170,7 @@ void RemovePointerMatchCallback::replace_pointer_use(const Expr* expr)
             return;
         }
         CharSourceRange range = CharSourceRange::getTokenRange(startLoc, endLoc2);
-        Replacement pointer_use_rep(sm, range, replacement);
+        Replacement pointer_use_rep(*SM, range, replacement);
 
         if (Error err = (*replacements)[pointer_use_rep.getFilePath()].add(pointer_use_rep)) {
             outputExpression(varexp, errs(), startLoc);
@@ -459,19 +456,8 @@ void RemovePointerMatchCallback::outputExpression(const Expr* expr, raw_ostream&
 }
 
 
-void RemovePointerMatchCallback::outputDeclaration(const Decl* decl, raw_ostream& output, const SourceLocation& loc_start) const
-{
-    output << getDeclAsString(decl) << '\n';
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
-}
-
-
 string RemovePointerMatchCallback::getExprAsString(const Expr* expression) const
 {
-    // References are easier to work with than pointers.
-    const SourceManager &sm = *SM;
     // Sources:
     // https://stackoverflow.com/a/37963981/5500589
     // https://stackoverflow.com/a/32118182/5500589
@@ -481,32 +467,18 @@ string RemovePointerMatchCallback::getExprAsString(const Expr* expression) const
     //SourceLocation startLoc = expression->getBeginLoc();
     //SourceLocation _endLoc = expression->getEndLoc();
 
-    SourceLocation startLoc = sm.getFileLoc(expression->getBeginLoc());
-    SourceLocation _endLoc = sm.getFileLoc(expression->getEndLoc());
+    SourceLocation startLoc = SM->getFileLoc(expression->getBeginLoc());
+    SourceLocation _endLoc = SM->getFileLoc(expression->getEndLoc());
     if (startLoc.isMacroID()) {
-        startLoc = sm.getSpellingLoc(startLoc);
+        startLoc = SM->getSpellingLoc(startLoc);
     }
     if (_endLoc.isMacroID()) {
-        _endLoc = sm.getSpellingLoc(_endLoc);
+        _endLoc = SM->getSpellingLoc(_endLoc);
     }
-    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
+    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, *SM, lopt);
+
+    size_t num_chars = SM->getCharacterData(endLoc) - SM->getCharacterData(startLoc);
 
     // Use LLVM's lexer to get source text.
-    return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
-}
-
-
-string RemovePointerMatchCallback::getDeclAsString(const Decl* declaration) const
-{
-    // References are easier to work with than pointers.
-    const SourceManager &sm = *SM;
-    // Source:
-    // https://stackoverflow.com/a/11154162/5500589
-    LangOptions lopt;
-
-    SourceLocation startLoc = declaration->getBeginLoc();
-    SourceLocation _endLoc = declaration->getEndLoc();
-    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
-
-    return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
+    return string(SM->getCharacterData(startLoc), num_chars);
 }

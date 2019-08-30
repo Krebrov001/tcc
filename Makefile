@@ -80,8 +80,8 @@ reset:
 # Verify the modified code generates the correct results
 .PHONY: verify
 verify:
-	@$(MAKE) -s -C navsses_model verify
-	@$(MAKE) -s -C navsses_model clean
+	@$(MAKE) -s -C models verify
+	@$(MAKE) -s -C models clean
 
 # Run static code analysis checks
 .PHONY: tidy

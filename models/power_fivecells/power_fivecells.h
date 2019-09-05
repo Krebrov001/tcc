@@ -7,9 +7,9 @@
  *
  * Code generated for Simulink model 'power_fivecells'.
  *
- * Model version                  : 1.103
+ * Model version                  : 1.105
  * Simulink Coder version         : 9.1 (R2019a) 23-Nov-2018
- * C/C++ source code generated on : Fri Aug 30 11:41:17 2019
+ * C/C++ source code generated on : Thu Sep  5 11:45:55 2019
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: Intel->x86-64 (Windows64)
@@ -397,6 +397,14 @@ typedef struct {
   real_T pooled22[6];
 } ConstP;
 
+/* External outputs (root outports fed by signals with default storage) */
+typedef struct {
+  real_T ISRC[3];                      /* '<Root>/Out1' */
+  real_T VSRC[3];                      /* '<Root>/Out2' */
+  real_T VLOAD[3];                     /* '<Root>/Out3' */
+  real_T ILOAD[3];                     /* '<Root>/Out4' */
+} ExtY;
+
 /* Real-time Model Data Structure */
 struct tag_RTM {
   const char_T * volatile errorStatus;
@@ -421,6 +429,9 @@ struct tag_RTM {
 
 /* Block signals and states (default storage) */
 extern DW rtDW;
+
+/* External outputs (root outports fed by signals with default storage) */
+extern ExtY rtY;
 
 /* Constant parameters (default storage) */
 extern const ConstP rtConstP;
@@ -600,23 +611,6 @@ extern RT_MODEL *const rtM;
  * Block '<S303>/Vf Devices & Clamping Diodes' : Unused code path elimination
  * Block '<S303>/Vf Diodes' : Unused code path elimination
  * Block '<S299>/do not delete this gain' : Unused code path elimination
- * Block '<S5>/Kv' : Unused code path elimination
- * Block '<S5>/Kv1' : Unused code path elimination
- * Block '<S333>/do not delete this gain' : Unused code path elimination
- * Block '<S334>/do not delete this gain' : Unused code path elimination
- * Block '<S335>/do not delete this gain' : Unused code path elimination
- * Block '<S336>/do not delete this gain' : Unused code path elimination
- * Block '<S337>/do not delete this gain' : Unused code path elimination
- * Block '<S338>/do not delete this gain' : Unused code path elimination
- * Block '<S7>/Kv' : Unused code path elimination
- * Block '<S7>/Kv1' : Unused code path elimination
- * Block '<S348>/do not delete this gain' : Unused code path elimination
- * Block '<S349>/do not delete this gain' : Unused code path elimination
- * Block '<S350>/do not delete this gain' : Unused code path elimination
- * Block '<S351>/do not delete this gain' : Unused code path elimination
- * Block '<S352>/do not delete this gain' : Unused code path elimination
- * Block '<S353>/do not delete this gain' : Unused code path elimination
- * Block '<Root>/Scope' : Unused code path elimination
  * Block '<Root>/Floating Scope1' : Unused code path elimination
  * Block '<S32>/Output' : Eliminate redundant signal conversion block
  * Block '<S33>/Output' : Eliminate redundant signal conversion block
@@ -678,6 +672,22 @@ extern RT_MODEL *const rtM;
  * Block '<S293>/Data Type Conversion' : Eliminate redundant data type conversion
  * Block '<S301>/Data Type Conversion' : Eliminate redundant data type conversion
  * Block '<S302>/Data Type Conversion' : Eliminate redundant data type conversion
+ * Block '<S5>/Kv' : Eliminated nontunable gain of 1
+ * Block '<S5>/Kv1' : Eliminated nontunable gain of 1
+ * Block '<S333>/do not delete this gain' : Eliminated nontunable gain of 1
+ * Block '<S334>/do not delete this gain' : Eliminated nontunable gain of 1
+ * Block '<S335>/do not delete this gain' : Eliminated nontunable gain of 1
+ * Block '<S336>/do not delete this gain' : Eliminated nontunable gain of 1
+ * Block '<S337>/do not delete this gain' : Eliminated nontunable gain of 1
+ * Block '<S338>/do not delete this gain' : Eliminated nontunable gain of 1
+ * Block '<S7>/Kv' : Eliminated nontunable gain of 1
+ * Block '<S7>/Kv1' : Eliminated nontunable gain of 1
+ * Block '<S348>/do not delete this gain' : Eliminated nontunable gain of 1
+ * Block '<S349>/do not delete this gain' : Eliminated nontunable gain of 1
+ * Block '<S350>/do not delete this gain' : Eliminated nontunable gain of 1
+ * Block '<S351>/do not delete this gain' : Eliminated nontunable gain of 1
+ * Block '<S352>/do not delete this gain' : Eliminated nontunable gain of 1
+ * Block '<S353>/do not delete this gain' : Eliminated nontunable gain of 1
  */
 
 /*-

@@ -1,4 +1,4 @@
-// Added to remove complier errors.
+// Add to remove compiler warning about memcpy and memset
 #include <string.h>
 
 /*
@@ -10,9 +10,9 @@
  *
  * Code generated for Simulink model 'power_fivecells'.
  *
- * Model version                  : 1.103
+ * Model version                  : 1.105
  * Simulink Coder version         : 9.1 (R2019a) 23-Nov-2018
- * C/C++ source code generated on : Fri Aug 30 11:41:17 2019
+ * C/C++ source code generated on : Thu Sep  5 11:45:55 2019
  *
  * Target selection: ert.tlc
  * Embedded hardware selection: Intel->x86-64 (Windows64)
@@ -82,6 +82,9 @@
 
 /* Block signals and states (default storage) */
 DW rtDW;
+
+/* External outputs (root outports fed by signals with default storage) */
+ExtY rtY;
 
 /* Real-time model */
 RT_MODEL rtM_;
@@ -784,9 +787,49 @@ void power_fivecells_step(void)
     }
   }
 
+  /* Outport: '<Root>/Out1' */
+  rtY.ISRC[0] = rtDW.StateSpace_o1[171];
+
+  /* Outport: '<Root>/Out2' */
+  rtY.VSRC[0] = rtDW.StateSpace_o1[150];
+
+  /* Outport: '<Root>/Out3' */
+  rtY.VLOAD[0] = rtDW.StateSpace_o1[153];
+
+  /* Outport: '<Root>/Out4' */
+  rtY.ILOAD[0] = rtDW.StateSpace_o1[174];
+
   /* Sin: '<Root>/Sine Wave' */
   rtb_Modulation_idx_0 = sin(rtb_Modulation_idx_2) * 0.8;
+
+  /* Outport: '<Root>/Out1' */
+  rtY.ISRC[1] = rtDW.StateSpace_o1[172];
+
+  /* Outport: '<Root>/Out2' */
+  rtY.VSRC[1] = rtDW.StateSpace_o1[151];
+
+  /* Outport: '<Root>/Out3' */
+  rtY.VLOAD[1] = rtDW.StateSpace_o1[154];
+
+  /* Outport: '<Root>/Out4' */
+  rtY.ILOAD[1] = rtDW.StateSpace_o1[175];
+
+  /* Sin: '<Root>/Sine Wave' */
   rtb_Modulation_idx_1 = sin(rtb_Modulation_idx_2 + -2.0943951023931953) * 0.8;
+
+  /* Outport: '<Root>/Out1' */
+  rtY.ISRC[2] = rtDW.StateSpace_o1[173];
+
+  /* Outport: '<Root>/Out2' */
+  rtY.VSRC[2] = rtDW.StateSpace_o1[152];
+
+  /* Outport: '<Root>/Out3' */
+  rtY.VLOAD[2] = rtDW.StateSpace_o1[155];
+
+  /* Outport: '<Root>/Out4' */
+  rtY.ILOAD[2] = rtDW.StateSpace_o1[176];
+
+  /* Sin: '<Root>/Sine Wave' */
   rtb_Modulation_idx_2 = sin(rtb_Modulation_idx_2 + 2.0943951023931953) * 0.8;
 
   /* Clock: '<S33>/Clock' incorporates:

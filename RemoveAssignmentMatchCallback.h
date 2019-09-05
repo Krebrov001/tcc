@@ -48,7 +48,7 @@ class RemoveAssignmentMatchCallback : public BaseMatchCallback
      */
     explicit RemoveAssignmentMatchCallback(map<string, Replacements> * replacements,
                                    const vector< pair<SourceLocation, SourceLocation> >& OtherPairs)
-      : replacements(replacements), SourcePairs{}, BaseMatchCallback()
+      : BaseMatchCallback(), replacements(replacements), SourcePairs{}
     {
         for (auto SourcePair : OtherPairs) {
             SourcePairs.push_back(SourcePair);

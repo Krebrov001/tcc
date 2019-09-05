@@ -133,17 +133,17 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
         try {
             dst = getArgString(call_expr->getArg(0)->IgnoreParenCasts(), "i");
         } catch (const exception& exp) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(call_expr, errs());
             errs() << exp.what() << '\n';
             errs() << "\n\n";
             return;  // Don't do the replacement upon failure to retrieve an argument.
         } catch(const string& exp) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(call_expr, errs());
             errs() << exp << '\n';
             errs() << "\n\n";
             return;
         } catch (...) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(call_expr, errs());
             errs() << "An unexpected exception was raised.\n";
             errs() << "\n\n";
             return;
@@ -153,17 +153,17 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
         try {
             src = getArgString(call_expr->getArg(1)->IgnoreParenCasts(), "i");
         } catch (const exception& exp) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(call_expr, errs());
             errs() << exp.what() << '\n';
             errs() << "\n\n";
             return;  // Don't do the replacement upon failure to retrieve an argument.
         } catch(const string& exp) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(call_expr, errs());
             errs() << exp << '\n';
             errs() << "\n\n";
             return;
         } catch (...) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(call_expr, errs());
             errs() << "An unexpected exception was raised.\n";
             errs() << "\n\n";
             return;
@@ -173,17 +173,17 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
         try {
             size = getSizeString(call_expr->getArg(2)->IgnoreParenCasts());
         } catch (const exception& exp) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(call_expr, errs());
             errs() << exp.what() << '\n';
             errs() << "\n\n";
             return;  // Don't do the replacement upon failure to retrieve an argument.
         } catch(const string& exp) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(call_expr, errs());
             errs() << exp << '\n';
             errs() << "\n\n";
             return;
         } catch (...) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(call_expr, errs());
             errs() << "An unexpected exception was raised.\n";
             errs() << "\n\n";
             return;
@@ -224,7 +224,7 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
         // Get the location after the semicolon following the memcpy() call
         SourceLocation after_semi_loc = Lexer::findLocationAfterToken(call_expr->getEndLoc(), semi, *SM, LangOptions(), false);
         if (!after_semi_loc.isValid()) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(call_expr, errs());
             errs() << "ERROR: Unable to find semicolon location after memcpy() call.\n";
             errs() << "\n\n";
             return;
@@ -233,13 +233,13 @@ void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
         Replacement memcpy_rep(*SM, range, replacement);
 
         if (Error err = (*replacements)[memcpy_rep.getFilePath()].add(memcpy_rep)) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(loc_start, after_semi_loc, errs());
             errs() << "ERROR: Error adding replacement that removes memcpy() call.\n";
             errs() << "\n\n";
             return;
         }
         if (print_debug_output) {
-            outputExpression(call_expr, outs(), loc_start);
+            outputSource(loc_start, after_semi_loc, outs());
             outs() << "replaced with:\n" << replacement << '\n';
             outs() << "\n\n";
         }
@@ -429,17 +429,17 @@ string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
             } else if (lhs_val == 1U) {
                 // 1 * var == var
                 if (oper_string == "*") {
-                    ret = getExprAsString(rhs);
+                    ret = getAsString(rhs);
                 // 1 << var
                 } else if (oper_string == "<<") {
-                    ret = getExprAsString(binop);
+                    ret = getAsString(binop);
                 // Other BinaryOperators are not yet supported.
                 } else {
                     throw BadOperator("ERROR: Unrecognized BinaryOperator.");
                 }
             // For any other literal OP variable
             } else {
-                ret = getExprAsString(binop);
+                ret = getAsString(binop);
             }
         // variable OP literal
         } else if (!lhs_literal && rhs_literal) {
@@ -450,7 +450,7 @@ string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
                     ret = "0";
                 // var << 0 == var
                 } else if (oper_string == "<<") {
-                    ret = getExprAsString(lhs);
+                    ret = getAsString(lhs);
                 // Other BinaryOperators are not yet supported.
                 } else {
                     throw BadOperator("ERROR: Unrecognized BinaryOperator.");
@@ -458,17 +458,17 @@ string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
             } else if (rhs_val == 1U) {
                 // var * 1 == var
                 if (oper_string == "*") {
-                    ret = getExprAsString(lhs);
+                    ret = getAsString(lhs);
                 // var << 1
                 } else if (oper_string == "<<") {
-                    ret = getExprAsString(binop);
+                    ret = getAsString(binop);
                 // Other BinaryOperators are not yet supported.
                 } else {
                     throw BadOperator("ERROR: Unrecognized BinaryOperator.");
                 }
             // For any other variable OP literal
             } else {
-                ret = getExprAsString(binop);
+                ret = getAsString(binop);
             }
         // variable OP variable
         } else if (!lhs_literal && !rhs_literal) {
@@ -477,7 +477,7 @@ string RemoveMemcpyMatchCallback::getSizeString(const Expr *expr) const
             // sizeof(element).
             // We didn't have this problem above because we assumed that one of the literals
             // is a sizeof() expression.
-            string size_string = "(" + getExprAsString(binop) + ")";
+            string size_string = "(" + getAsString(binop) + ")";
             size_string.append(" / sizeof(" + type_string + ")");
             ret = size_string;
         }

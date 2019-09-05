@@ -39,7 +39,7 @@ class RemoveVariablesMatchCallback : public BaseMatchCallback
      *                                    refactoring process.
      */
     explicit RemoveVariablesMatchCallback(map<string, Replacements> * replacements)
-      : replacements(replacements), BaseMatchCallback() {}
+      : BaseMatchCallback(), replacements(replacements) {}
 
     /**
      * This method creates and "returns" the AST matchers that match expressions specifically

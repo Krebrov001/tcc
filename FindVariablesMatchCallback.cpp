@@ -92,26 +92,3 @@ void FindVariablesMatchCallback::collectResults(vector<string>& variables)
         }
     }
 }
-
-
-string FindVariablesMatchCallback::getExprAsString(const Expr* expression) const
-{
-    // Source:
-    // https://stackoverflow.com/a/11154162/5500589
-    LangOptions lopt;
-
-    // SM->getFileLoc( ) is apparently needed to stop the bug:
-    // terminate called after throwing an instance of 'std::length_error'
-    // what():  basic_string::_M_create
-    // Aborted (core dumped)
-    // Apparently, without this construct, for some expressions, the SourceLocations will be
-    // invalid, which will in turn create an invalid length of string, causing
-    // std::length_error to be thrown. Perhaps this is due to the passed in expression
-    // being inside of a macro expansion.
-    SourceLocation startLoc = SM->getFileLoc(expression->getBeginLoc());
-    SourceLocation _endLoc = SM->getFileLoc(expression->getEndLoc());
-    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, *SM, lopt);
-    size_t string_length = SM->getCharacterData(endLoc) - SM->getCharacterData(startLoc);
-
-    return string(SM->getCharacterData(startLoc), string_length);
-}

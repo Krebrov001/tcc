@@ -37,7 +37,7 @@ class RemovePointerMatchCallback : public BaseMatchCallback
      *                                    refactoring process.
      */
     explicit RemovePointerMatchCallback(map<string, Replacements> * replacements)
-      : replacements(replacements), BaseMatchCallback() {}
+      : BaseMatchCallback(), replacements(replacements) {}
 
     /**
      * This method creates and "returns" the AST matchers that match expressions specifically
@@ -153,51 +153,6 @@ class RemovePointerMatchCallback : public BaseMatchCallback
      */
     void replace_pointer_dereference(const Expr* baseExp);
 
-    /**
-     * This method prints the full expression, the filename where this expression originated,
-     * the row number (line number), and the column number. It is used for diagnostic purposes.
-     *
-     * @param const Expr* expr - An expression. This pointer can point to an Expr object or an
-     *                    object of any data type derived from that class.
-     *
-     * @param raw_ostream& output - A reference to an LLVM raw output stream, which is
-     *                     an extremely fast bulk output stream that can only output to a stream.
-     *                     Data can be written to a different destination depending on the value of
-     *                     this parameter. It can be llvm::outs(), llvm::errs(), or llvm::nulls().
-     *                     The reference is non-const because writing output to an instance of a
-     *                     stream class causes that object to be modified.
-     *
-     * @param const SourceLocation& loc_start - The starting location of the passed in expression.
-     *              Passing it in as a parameter means that we don't have to know precisely what
-     *              type the expression is, which we must know in order to determine the
-     *              SourceLocation manually.
-     *
-     * @param const int numchars = -1 - This parameter is optional. If it is omitted, it gets the
-     *                                  default value -1.
-     *                  A string representation of an expression is comprised of a SourceLocation
-     *                  and some number of characters following that location.
-     *             *  If numbers < 0, which may occur if that argument is not provided, or a
-     *                negative value is intentionally passed in,
-     *                  The program tries to estimate the number of characters comprising that
-     *                  expression. This is the default setting.
-     *             *  If numbers >= 0, which is only if that argument is explicitly passed in,
-     *                  Then a string starting at the SourceLocation with numchars following
-     *                  characters is printed to the specified LLVM raw output stream.
-     */
-    void outputExpression(const Expr* expr, raw_ostream& output, const SourceLocation& loc_start, int numchars = -1) const;
-
-    /**
-     * This method was overridden in the MakeStaticMatchCallback class.
-     * The implementation was better updated to handle macros.
-     *
-     * @param const Expr* expression - A pointer to an instance of clang::Expr,
-     *        or one of it's derived types.
-     *
-     * @return string - A string representation of the passed in expression,
-     *         the exact string text of that expression.
-     */
-
-    string getExprAsString(const Expr* expression) const override;
     /* Private member variables. */
 
     map<string, Replacements>* replacements;

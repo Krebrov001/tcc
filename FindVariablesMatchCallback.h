@@ -74,18 +74,6 @@ class FindVariablesMatchCallback : public BaseMatchCallback
     void collectResults(vector<string>& variables);
 
   private:
-    /**
-     * This method was overridden in the MakeStaticMatchCallback class.
-     * The implementation was better updated to remove a bug that appeared when printing
-     * expressions, those handled specifically by this Callback class.
-     *
-     * @param const Expr* expression - A pointer to an instance of clang::Expr,
-     *        or one of it's derived types.
-     *
-     * @return string - A string representation of the passed in expression,
-     *         the exact string text of that expression.
-     */
-    string getExprAsString(const Expr* expression) const override;
 
     /* Private member variables. */
 

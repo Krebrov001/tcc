@@ -9,7 +9,7 @@ LLVM_PROJECT_DIR := /mnt/c/Users/winko/Documents/Clang_new/llvm-project
 BINDIR           := $(realpath $(dir $(shell which llvm-config)))
 LLVMCONFIG       := $(BINDIR)/llvm-config
 LLVMCOMPONENTS   := profiledata bitreader option mcparser
-CXXFLAGS         := $(shell $(LLVMCONFIG) --cxxflags) -fcxx-exceptions -g\
+CXXFLAGS         := $(shell $(LLVMCONFIG) --cxxflags) -fcxx-exceptions -g -Wall\
                     -I $(LLVM_PROJECT_DIR)/clang-tools-extra\
 					-I $(LLVM_PROJECT_DIR)
 # If object or library AA needs a symbol from library BB, then AA should come before library BB in the command-

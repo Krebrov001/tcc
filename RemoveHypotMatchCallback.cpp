@@ -66,13 +66,13 @@ void RemoveHypotMatchCallback::run(const MatchFinder::MatchResult& result)
 
         Replacement hypot_call_rep(*SM, range, replacement);
         if (Error err = (*replacements)[hypot_call_rep.getFilePath()].add(hypot_call_rep)) {
-            outputExpression(hypot_call, errs());
+            outputSource(hypot_call, errs());
             errs() << "ERROR: Error adding replacement that replaces hypot() with a manual calculation.\n";
             errs() << "\n\n";
             return;
         }
         if (print_debug_output) {
-            outputExpression(hypot_call, outs());
+            outputSource(hypot_call, outs());
             outs() << "replaced with:\n" << replacement << '\n';
             outs() << "\n\n";
         }
@@ -104,17 +104,4 @@ string RemoveHypotMatchCallback::getArgAsString(const Expr* arg, char end) const
     // because the string() constructor takes a char* and number of characters from there on.
     //SourceLocation loc_end = loc_start.getLocWithOffset(num_chars);
     return string(SM->getCharacterData(loc_start), num_chars);
-}
-
-
-void RemoveHypotMatchCallback::outputExpression(const CallExpr* expr, raw_ostream& output)
-{
-    SourceLocation loc_start = expr->getBeginLoc();
-    SourceLocation loc_end = expr->getEndLoc();
-
-    output << string(SM->getCharacterData(loc_start), SM->getCharacterData(loc_end) - SM->getCharacterData(loc_start));
-    output << ")\n";
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
 }

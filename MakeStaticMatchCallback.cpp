@@ -78,7 +78,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 		SourceLocation after_semi_loc = Lexer::findLocationAfterToken(
 			call_expr->getEndLoc(), semi, *SM, LangOptions(), false);
 		if (!after_semi_loc.isValid()) {
-            outputExpression(call_expr, errs(), loc_start);
+            outputSource(call_expr, errs());
 			errs() << "ERROR: Unable to find semicolon location after free call.\n";
             errs() << "\n\n";
 			return;
@@ -91,14 +91,14 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 				CharSourceRange::getTokenRange(call_expr->getBeginLoc(), after_semi_loc);
 			Replacement free_rep(*SM, range, "");
 			if (Error err = (*replacements)[free_rep.getFilePath()].add(free_rep)) {
-                outputExpression(call_expr, errs(), loc_start);
+                outputSource(call_expr, errs());
 				errs() << "ERROR: Error adding replacement that removes free call.\n";
                 errs() << "\n\n";
 				return;
 			}
 
             if (print_debug_output) {
-                outputExpression(call_expr, outs(), loc_start);
+                outputSource(call_expr, outs());
                 // replaced with nothing
                 outs() << "replaced with:\n" << "" << '\n';
                 outs() << "\n\n";
@@ -107,7 +107,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 		} else {
 			Replacement free_start_rep(*(SM), call_expr->getBeginLoc(), 0, "/*");
 			if (Error err = (*replacements)[free_start_rep.getFilePath()].add(free_start_rep)) {
-                outputExpression(call_expr, errs(), loc_start);
+                outputSource(call_expr, errs());
 				errs() << "ERROR: Error adding free start replacement: \"/*\"\n";
                 errs() << "\n\n";
 				return;
@@ -116,7 +116,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 
 			Replacement free_end_rep(*(SM), after_semi_loc, 0, "*/");
 			if (Error err = (*replacements)[free_end_rep.getFilePath()].add(free_end_rep)) {
-                outputExpression(call_expr, errs(), loc_start);
+                outputSource(call_expr, errs());
 				errs() << "ERROR: Error adding free end replacement: \"*/\"\n";
                 errs() << "\n\n";
 				return;
@@ -124,10 +124,10 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
             // Adding end replacement succeeded.
 
             if (print_debug_output) {
-                outputExpression(call_expr, outs(), loc_start);
+                outputSource(call_expr, outs());
                 // replaced with comments
                 outs() << "replaced with:\n";
-                outs() << "/*" << getExprAsString(call_expr) << "*/\n";
+                outs() << "/*" << getAsString(call_expr) << "*/\n";
                 outs() << "\n\n";
             }
 		}
@@ -138,7 +138,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 		// Expr for the actual calloc() call
 		const CallExpr *ce = dyn_cast<CallExpr>(assign_expr->getRHS()->IgnoreParenCasts());
 		if (ce == nullptr) {
-            outputExpression(assign_expr, errs(), assign_expr->getBeginLoc());
+            outputSource(assign_expr, errs());
 			errs() << "ERROR: Unable to get CallExpr for calloc assignment.\n";
             errs() << "\n\n";
 			return;
@@ -153,7 +153,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 			var_decl = dyn_cast<DeclaratorDecl>(varexp->getDecl());
 		}
 		if (var_decl == nullptr) {
-            outputExpression(assign_expr, errs(), assign_expr->getBeginLoc());
+            outputSource(assign_expr, errs());
 			errs() << "ERROR: Unable to get declarator decl for assigned variable.\n";
             errs() << "\n\n";
 			return;
@@ -164,7 +164,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 		// coder uses void pointers in declarations.
 		const auto *sizeof_expr = dyn_cast<UnaryExprOrTypeTraitExpr>(ce->getArg(1));
 		if ((sizeof_expr == nullptr) || (sizeof_expr->getKind() != UETT_SizeOf)) {
-            outputExpression(ce, errs(), ce->getBeginLoc());
+            outputSource(ce, errs());
 			errs() << "ERROR: Unable to get Expr for sizeof or sizeof not in calloc().\n";
             errs() << "\n\n";
 			return;
@@ -172,7 +172,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 
 		const Expr *count_expr = ce->getArg(0);
 		if (count_expr == nullptr) {
-            outputExpression(ce, errs(), ce->getBeginLoc());
+            outputSource(ce, errs());
 			errs() << "ERROR: Unable to get Expr for element count in calloc().\n";
             errs() << "\n\n";
 			return;
@@ -187,7 +187,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 								 *SM, LangOptions(), &count_invalid)
 				.str();
 		if (count_invalid) {
-            outputExpression(ce, errs(), ce->getBeginLoc());
+            outputSource(ce, errs());
 			errs() << "ERROR: Inavlid location in source text lookup.\n";
             errs() << "\n\n";
 			return;
@@ -197,7 +197,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 		SourceLocation after_semi_loc = Lexer::findLocationAfterToken(
 			assign_expr->getEndLoc(), semi, *SM, LangOptions(), false);
 		if (!after_semi_loc.isValid()) {
-            outputExpression(ce, errs(), ce->getBeginLoc());
+            outputSource(ce, errs());
 			outs() << "ERROR: Unable to find semicolon location after calloc call.\n";
             errs() << "\n\n";
 			return;
@@ -210,7 +210,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 				CharSourceRange::getTokenRange(assign_expr->getBeginLoc(), after_semi_loc);
 			Replacement calloc_rep(*SM, range, "");
 			if (Error err = (*replacements)[calloc_rep.getFilePath()].add(calloc_rep)) {
-                outputExpression(assign_expr, errs(), assign_expr->getBeginLoc());
+                outputSource(assign_expr, errs());
 				errs() << "ERROR: Error adding replacement that removes calloc call "
 						  "and assignment.\n";
                 errs() << "\n\n";
@@ -218,7 +218,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 			}
 
             if (print_debug_output) {
-                outputExpression(assign_expr, outs(), assign_expr->getBeginLoc());
+                outputSource(assign_expr, outs());
                 // replaced with nothing
                 outs() << "replaced with:\n" << "" << '\n';
                 outs() << "\n\n";
@@ -229,7 +229,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 			Replacement calloc_start_rep(*(SM), assign_expr->getBeginLoc(), 0,
 										 "/*");
 			if (Error err = (*replacements)[calloc_start_rep.getFilePath()].add(calloc_start_rep)) {
-                outputExpression(assign_expr, errs(), assign_expr->getBeginLoc());
+                outputSource(assign_expr, errs());
 				errs() << "ERROR: Error adding calloc start replacement: \"/*\"\n";
                 errs() << "\n\n";
 				return;
@@ -238,7 +238,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 
 			Replacement calloc_end_rep(*(SM), after_semi_loc, 0, "*/");
 			if (Error err = (*replacements)[calloc_end_rep.getFilePath()].add(calloc_end_rep)) {
-                outputExpression(assign_expr, errs(), assign_expr->getBeginLoc());
+                outputSource(assign_expr, errs());
 				errs() << "ERROR: Error adding calloc end replacement: \"*/\"\n";
                 errs() << "\n\n";
 				return;
@@ -246,10 +246,10 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
             // Adding end replacement succeeded.
 
             if (print_debug_output) {
-                outputExpression(assign_expr, outs(), assign_expr->getBeginLoc());
+                outputSource(assign_expr, outs());
                 // replaced with comments
                 outs() << "replaced with:\n";
-                outs() << "/*" << getExprAsString(assign_expr) << "*/\n";
+                outs() << "/*" << getAsString(assign_expr) << "*/\n";
                 outs() << "\n\n";
             }
 		}
@@ -259,7 +259,7 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 		Replacement type_rep(*(SM), var_decl->getBeginLoc(),
 							 var_decl->getType().getAsString().length(), type + " ");
 		if (Error err = (*replacements)[type_rep.getFilePath()].add(type_rep)) {
-            outputDeclaration(var_decl, errs(), var_decl->getBeginLoc());
+            outputSource(var_decl, errs());
 			errs() << "ERROR: Error adding type declaration replacement.\n";
             errs() << "\n\n";
 			return;
@@ -273,14 +273,14 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
 		Replacement array_rep(*(SM), var_decl->getEndLoc(),
 							  var_decl_name.length(), var_decl_name + array_src);
 		if (Error err = (*replacements)[array_rep.getFilePath()].add(array_rep)) {
-            outputDeclaration(var_decl, errs(), var_decl->getBeginLoc());
+            outputSource(var_decl, errs());
 			errs() << "ERROR: Error adding array declaration replacement.\n";
             errs() << "\n\n";
 			return;
 		}
 
         if (print_debug_output) {
-            outputDeclaration(var_decl, outs(), var_decl->getBeginLoc());
+            outputSource(var_decl, outs());
             outs() << "replaced with:\n";
             outs() << type << " " << var_decl_name + array_src << '\n';
             outs() << "\n\n";
@@ -290,31 +290,4 @@ void MakeStaticMatchCallback::run(const MatchFinder::MatchResult &Result) {
         errs() << "\n\n";
 		return;
 	}
-}
-
-
-string MakeStaticMatchCallback::getExprAsString(const Expr* expression) const
-{
-    // Sources:
-    // https://stackoverflow.com/a/37963981/5500589
-    // https://stackoverflow.com/a/32118182/5500589
-    // https://stackoverflow.com/a/39598930/5500589
-    LangOptions lopt;
-    // Get the source range and manager.
-    //SourceLocation startLoc = expression->getBeginLoc();
-    //SourceLocation _endLoc = expression->getEndLoc();
-
-    SourceLocation startLoc = SM->getFileLoc(expression->getBeginLoc());
-    SourceLocation _endLoc = SM->getFileLoc(expression->getEndLoc());
-    if (startLoc.isMacroID()) {
-        startLoc = SM->getSpellingLoc(startLoc);
-    }
-    if (_endLoc.isMacroID()) {
-        _endLoc = SM->getSpellingLoc(_endLoc);
-    }
-    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, *SM, lopt);
-
-    unsigned int num_chars = SM->getCharacterData(endLoc) - SM->getCharacterData(startLoc);
-
-    return string(SM->getCharacterData(startLoc), num_chars);
 }

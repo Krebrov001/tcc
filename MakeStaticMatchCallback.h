@@ -39,7 +39,7 @@ class MakeStaticMatchCallback : public BaseMatchCallback {
 	 *                                    refactoring process.
 	 */
 	explicit MakeStaticMatchCallback(map<string, Replacements> *replacements)
-     : replacements(replacements), BaseMatchCallback() {}
+     : BaseMatchCallback(), replacements(replacements) {}
 
     /**
      * This method creates and "returns" the AST matchers that match expressions specifically
@@ -90,17 +90,6 @@ class MakeStaticMatchCallback : public BaseMatchCallback {
 	void comment_code() { _remove_code = false; }
 
   private:
-    /**
-     * This method was overridden in the MakeStaticMatchCallback class.
-     * The implementation was better updated to handle macros.
-     *
-     * @param const Expr* expression - A pointer to an instance of clang::Expr,
-     *        or one of it's derived types.
-     *
-     * @return string - A string representation of the passed in expression,
-     *         the exact string text of that expression.
-     */
-    string getExprAsString(const Expr* expression) const override;
 
     /* Private member variables. */
 

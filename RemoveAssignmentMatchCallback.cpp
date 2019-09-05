@@ -49,13 +49,13 @@ void RemoveAssignmentMatchCallback::run(const MatchFinder::MatchResult& result)
             /* Performing the actual replacement, replacing the source code text. */
             Replacement dead_code_rep(*SM, range, replacement);
             if (Error err = (*replacements)[dead_code_rep.getFilePath()].add(dead_code_rep)) {
-                outputExpression(loc_start, loc_end, errs());
+                outputSource(loc_start, loc_end, errs());
                 errs() << "ERROR: Error adding replacement that replaces the pointer use with address of structure.\n";
                 errs() << "\n\n";
                 return;
             }
             if (print_debug_output) {
-                outputExpression(loc_start, loc_end, outs());
+                outputSource(loc_start, loc_end, outs());
                 outs() << "replaced with:\n" << replacement << '\n';
                 outs() << "\n\n";
             }

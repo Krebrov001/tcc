@@ -69,7 +69,7 @@ void RemoveVariablesMatchCallback::run(const MatchFinder::MatchResult& result)
         // Get the location after the semicolon following the declaration of the unused variable.
         SourceLocation after_semi_loc = Lexer::findLocationAfterToken(loc_end, semi, *SM, LangOptions(), false);
         if (!after_semi_loc.isValid()) {
-            outputDeclaration(variable_declaration, errs(), loc_start);
+            outputSource(variable_declaration, errs());
             errs() << "ERROR: Unable to find source location of the unused variable declaration.\n";
             errs() << "\n\n";
             return;
@@ -78,13 +78,13 @@ void RemoveVariablesMatchCallback::run(const MatchFinder::MatchResult& result)
         Replacement unused_variable_rep(*SM, range, replacement);
 
         if (Error err = (*replacements)[unused_variable_rep.getFilePath()].add(unused_variable_rep)) {
-            outputDeclaration(variable_declaration, errs(), loc_start);
+            outputSource(variable_declaration, errs());
             errs() << "ERROR: Error adding replacement that removes the unused variable declaration.\n";
             errs() << "\n\n";
             return;
         }
         if (print_debug_output) {
-            outputDeclaration(variable_declaration, outs(), loc_start);
+            outputSource(variable_declaration, outs());
             outs() << "replaced with:\n" << replacement << '\n';
             outs() << "\n\n";
         }

@@ -44,7 +44,7 @@ class RemoveMemcpyMatchCallback : public BaseMatchCallback
      *                                    refactoring process.
      */
     explicit RemoveMemcpyMatchCallback(map<string, Replacements> * replacements)
-		: replacements(replacements), BaseMatchCallback() {}
+		: BaseMatchCallback(), replacements(replacements) {}
 
     /**
      * This method creates and "returns" the AST matchers that match expressions specifically

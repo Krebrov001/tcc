@@ -4,8 +4,8 @@ LIBS=-lopenlibm
 
 all: complete_system
 
-complete_system: main.c complete_system_io.c complete_system_io_data.c rt_nonfinite.c rt_look1d.c rtGetNaN.c rtGetInf.c rt_look.c
-	$(CC) $(CFLAGS) -o complete_system main.c complete_system_io.c complete_system_io_data.c rt_nonfinite.c rt_look1d.c rtGetNaN.c rtGetInf.c rt_look.c $(LIBS)
+complete_system: main.c complete_system_io.c complete_system_io_data.c rt_nonfinite.c rt_look1d.c rtGetNaN.c rtGetInf.c rt_look.c ../utils.c
+	$(CC) $(CFLAGS) -o complete_system main.c complete_system_io.c complete_system_io_data.c rt_nonfinite.c rt_look1d.c rtGetNaN.c rtGetInf.c rt_look.c ../utils.c -I .. $(LIBS)
 
 # Execute the simulation and print results
 .PHONY: simulate

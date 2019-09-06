@@ -1,12 +1,13 @@
 CC=clang
-CFLAGS=-Wall
+DISABLED_WARNINGS=-Wno-unused #Project has unused variables by default
+CFLAGS=-Wall $(DISABLED_WARNINGS) -I ../
 LIBS=-lopenlibm
 EXE=power_fivecells
 
 all: $(EXE)
 
-$(EXE): main.c power_fivecells.c power_fivecells_data.c
-	$(CC) $(CFLAGS) -o $(EXE) main.c power_fivecells.c power_fivecells_data.c $(LIBS)
+$(EXE): main.c power_fivecells.c power_fivecells_data.c ../utils.c
+	$(CC) $(CFLAGS) -o $(EXE) main.c power_fivecells.c power_fivecells_data.c ../utils.c $(LIBS)
 
 # Execute the simulation and only print if there's an error
 .PHONY: verify

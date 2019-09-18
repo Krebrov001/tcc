@@ -63,12 +63,13 @@ void RemoveVariablesMatchCallback::run(const MatchFinder::MatchResult& result)
         // By replacing the declaration with "" we are efrectively deleting it from the source code.
         string replacement;
 
-        SourceLocation loc_start = variable_declaration->getLocStart();
-        SourceLocation loc_end   = variable_declaration->getLocEnd();
+        SourceLocation loc_start = variable_declaration->getBeginLoc();
+        SourceLocation loc_end   = variable_declaration->getEndLoc();
+
         // Get the location after the semicolon following the declaration of the unused variable.
         SourceLocation after_semi_loc = Lexer::findLocationAfterToken(loc_end, semi, *SM, LangOptions(), false);
         if (!after_semi_loc.isValid()) {
-            outputDeclaration(variable_declaration, errs(), loc_start);
+            outputSource(variable_declaration, errs());
             errs() << "ERROR: Unable to find source location of the unused variable declaration.\n";
             errs() << "\n\n";
             return;
@@ -77,13 +78,13 @@ void RemoveVariablesMatchCallback::run(const MatchFinder::MatchResult& result)
         Replacement unused_variable_rep(*SM, range, replacement);
 
         if (Error err = (*replacements)[unused_variable_rep.getFilePath()].add(unused_variable_rep)) {
-            outputDeclaration(variable_declaration, errs(), loc_start);
+            outputSource(variable_declaration, errs());
             errs() << "ERROR: Error adding replacement that removes the unused variable declaration.\n";
             errs() << "\n\n";
             return;
         }
         if (print_debug_output) {
-            outputDeclaration(variable_declaration, outs(), loc_start);
+            outputSource(variable_declaration, outs());
             outs() << "replaced with:\n" << replacement << '\n';
             outs() << "\n\n";
         }
@@ -93,29 +94,4 @@ void RemoveVariablesMatchCallback::run(const MatchFinder::MatchResult& result)
         errs() << "ERROR: The matched expression is not a VarDecl.\n";
         errs() << "\n\n";
     }
-}
-
-
-void RemoveVariablesMatchCallback::outputDeclaration(const Decl* decl, raw_ostream& output, const SourceLocation& loc_start) const
-{
-    output << getDeclAsString(decl) << '\n';
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
-}
-
-
-string RemoveVariablesMatchCallback::getDeclAsString(const Decl* declaration) const
-{
-    // References are easier to work with than pointers.
-    const SourceManager &sm = *SM;
-    // Source:
-    // https://stackoverflow.com/a/11154162/5500589
-    LangOptions lopt;
-
-    SourceLocation startLoc = declaration->getLocStart();
-    SourceLocation _endLoc = declaration->getLocEnd();
-    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
-
-    return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
 }

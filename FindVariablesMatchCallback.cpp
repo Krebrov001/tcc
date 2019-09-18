@@ -34,6 +34,7 @@ using clang::Lexer;
 
 extern bool print_debug_output;  // defined in refactoring_tool.cpp
 
+
 void FindVariablesMatchCallback::getASTmatchers(MatchFinder& mf)
 {
     // isExpansionInMainFile() is needed to grab only the variables that are declared in the main
@@ -63,8 +64,12 @@ void FindVariablesMatchCallback::run(const MatchFinder::MatchResult& result)
         variable_declarations.insert(variable_declaration->getName());
     } else if (auto* variable_use = result.Nodes.getNodeAs<DeclRefExpr>("variable_use")) {
         // Add the variable to the variable_uses list.
-        auto vardecl = dyn_cast<VarDecl>(variable_use->getDecl());
-        variable_uses.insert(vardecl->getName());
+        if (auto vardecl = dyn_cast<VarDecl>(variable_use->getDecl())) {
+            variable_uses.insert(vardecl->getName());
+        } else {
+            errs() << "ERROR: Could not identigy the variable use, VarDecl is null.\n";
+            errs() << "\n\n";
+        }
     } else {
         errs() << "ERROR: The matched expression is neither a VarDecl nor a DeclRefExpr.\n";
         errs() << "\n\n";
@@ -86,63 +91,4 @@ void FindVariablesMatchCallback::collectResults(vector<string>& variables)
             variables.push_back(*decl_it);
         }
     }
-}
-
-
-void FindVariablesMatchCallback::outputDeclaration(const Decl* decl, raw_ostream& output, const SourceLocation& loc_start) const
-{
-    output << getDeclAsString(decl) << '\n';
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
-}
-
-
-void FindVariablesMatchCallback::outputExpression(const Expr* expr, raw_ostream& output, const SourceLocation& loc_start) const
-{
-    output << getExprAsString(expr) << '\n';
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
-}
-
-
-string FindVariablesMatchCallback::getDeclAsString(const Decl* declaration) const
-{
-    // References are easier to work with than pointers.
-    const SourceManager &sm = *SM;
-    // Source:
-    // https://stackoverflow.com/a/11154162/5500589
-    LangOptions lopt;
-
-    SourceLocation startLoc = declaration->getLocStart();
-    SourceLocation _endLoc = declaration->getLocEnd();
-    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
-
-    return string(sm.getCharacterData(startLoc), sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc));
-}
-
-
-string FindVariablesMatchCallback::getExprAsString(const Expr* expression) const
-{
-    // References are easier to work with than pointers.
-    const SourceManager &sm = *SM;
-    // Source:
-    // https://stackoverflow.com/a/11154162/5500589
-    LangOptions lopt;
-
-    // sm.getFileLoc( ) is apparently needed to stop the bug:
-    // terminate called after throwing an instance of 'std::length_error'
-    // what():  basic_string::_M_create
-    // Aborted (core dumped)
-    // Apparently, without this construct, for some expressions, the SourceLocations will be
-    // invalid, which will in turn create an invalid length of string, causing
-    // std::length_error to be thrown. Perhaps this is due to the passed in expression
-    // being inside of a macro expansion.
-    SourceLocation startLoc = sm.getFileLoc(expression->getLocStart());
-    SourceLocation _endLoc = sm.getFileLoc(expression->getLocEnd());
-    SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, sm, lopt);
-    size_t string_length = sm.getCharacterData(endLoc) - sm.getCharacterData(startLoc);
-
-    return string(sm.getCharacterData(startLoc), string_length);
 }

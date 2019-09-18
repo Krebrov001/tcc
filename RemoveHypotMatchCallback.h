@@ -1,6 +1,8 @@
 #ifndef REMOVE_HYPOT_MATCH_CALLBACK_H
 #define REMOVE_HYPOT_MATCH_CALLBACK_H
 
+#include "BaseMatchCallback.h"
+
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Core/Replacement.h"
 
@@ -20,7 +22,7 @@ using clang::tooling::Replacements;
 using clang::ast_matchers::MatchFinder;
 
 
-class RemoveHypotMatchCallback : public MatchFinder::MatchCallback
+class RemoveHypotMatchCallback : public BaseMatchCallback
 {
   public:
     /**
@@ -34,7 +36,7 @@ class RemoveHypotMatchCallback : public MatchFinder::MatchCallback
      *                                    refactoring process.
      */
     explicit RemoveHypotMatchCallback(map<string, Replacements> * replacements)
-      : replacements(replacements), SM(nullptr) {}
+      : BaseMatchCallback(), replacements(replacements) {}
 
     /**
      * This method creates and "returns" the AST matchers that match expressions specifically
@@ -87,31 +89,9 @@ class RemoveHypotMatchCallback : public MatchFinder::MatchCallback
      */
     string getArgAsString(const Expr* arg, char end) const;
 
-    /**
-     * This method prints the full expression, the filename where this expression originated,
-     * the row number (line number), and the column number. It is used for diagnostic purposes.
-     * This method also prints an extra ')' after the full expression, because the passed in
-     * expression is supposed to be a call to hypot(), so we're just printing the ending ')' that
-     * does not get represented in the expression statement.
-     *
-     * @param const CallExpr* expr - An expression representing a call to hypot() function.
-     *
-     * @param raw_ostream& output - A reference to an LLVM raw output stream, which is
-     *                     an extremely fast bulk output stream that can only output to a stream.
-     *                     Data can be written to a different destination depending on the value of
-     *                     this parameter. It can be llvm::outs(), llvm::errs(), or llvm::nulls().
-     *                     The reference is non-const because writing output to an instance of a
-     *                     stream class causes that object to be modified.
-     */
-    void outputExpression(const CallExpr* expr, raw_ostream& output);
-
     /* Private member variables. */
 
     map<string, Replacements>* replacements;
-    // This class handles loading and caching of source files into memory.
-    // It is the middleman between the refactoring tool and the actual C source code which is
-    // being analyzed. This enables us to do source code replacements.
-    SourceManager* SM;
     unsigned int num_hypot_replacements{0};
 	// Add other variables here as needed.
 };

@@ -1,6 +1,8 @@
 #ifndef REMOVE_MEMCPY_MATCH_CALLBACK_H
 #define REMOVE_MEMCPY_MATCH_CALLBACK_H
 
+#include "BaseMatchCallback.h"
+
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/APInt.h"
@@ -27,7 +29,7 @@ using clang::ast_matchers::MatchFinder;
  * this class as a callback and it calls the run() method, which then replaces that memcpy()
  * function call with a functionally equivelent block of code.
  */
-class RemoveMemcpyMatchCallback : public MatchFinder::MatchCallback
+class RemoveMemcpyMatchCallback : public BaseMatchCallback
 {
   // Usually public member functions are put at the top, since the interface is the most
   // relevant thing for the user.
@@ -42,7 +44,7 @@ class RemoveMemcpyMatchCallback : public MatchFinder::MatchCallback
      *                                    refactoring process.
      */
     explicit RemoveMemcpyMatchCallback(map<string, Replacements> * replacements)
-		: replacements(replacements), SM(nullptr) {}
+		: BaseMatchCallback(), replacements(replacements) {}
 
     /**
      * This method creates and "returns" the AST matchers that match expressions specifically
@@ -77,45 +79,15 @@ class RemoveMemcpyMatchCallback : public MatchFinder::MatchCallback
 	/**
 	 * Returns the number of successful memcpy() replacements.
 	 */
-	unsigned int getNumReplacements() const {return num_replacements;}
+	unsigned int getNumReplacements() const { return num_replacements; }
 
     /**
 	 * Returns the number of matches found, the number of times run() function got called.
 	 */
-	unsigned int getNumMatchesFound() const {return num_matches_found;}
+	unsigned int getNumMatchesFound() const { return num_matches_found; }
 
   private:
     /* Private helper functions. */
-
-    /**
-     * This function prints the full expression, the filename where this expression originated,
-     * the row number (line number), and the column number. It is used for diagnostic purposes.
-     *
-     * @param const Expr* expr - An expression. This pointer can point to an Expr object or an
-     *                    object of any data type derived from that class.
-     *
-     * @param raw_ostream& output - A reference to an LLVM raw output stream, which is
-     *                     an extremely fast bulk output stream that can only output to a stream.
-     *                     Data can be written to a different destination depending on the value of
-     *                     this parameter. It can be llvm::outs(), llvm::errs(), or llvm::nulls().
-     *                     The reference is non-const because writing output to an instance of a
-     *                     stream class causes that object to be modified.
-     *
-     * @param const SourceLocation& loc_start - The starting location of the passed in expression.
-     *              Passing it in as a parameter means that we don't have to know precisely what
-     *              type the expression is, which we must know in order to determine the
-     *              SourceLocation manually.
-     */
-    void outputExpression(const Expr* expr, raw_ostream& output, const SourceLocation& loc_start) const;
-
-    /**
-     * @param const Expr* expression - A pointer to an instance of clang::Expr,
-     *        or one of it's derived types.
-     *
-     * @return string - A string representation of the passed in expression,
-     *         the exact string text of that expression.
-     */
-    string getExprAsString(const Expr* expression) const;
 
     /**
      * This function takes an expression holding a numberical value, and returns an APInt
@@ -213,10 +185,7 @@ class RemoveMemcpyMatchCallback : public MatchFinder::MatchCallback
     /* Private member variables. */
 
     map<string, Replacements>* replacements;
-    // This class handles loading and caching of source files into memory.
-    // It is the middleman between the refactoring tool and the actual C source code which is
-    // being analyzed. This enables us to do source code replacements.
-    SourceManager* SM;
+
     // This is a string representation of the elements we're copying.
     // Used for checking if the data types of the arguments match.
     string type_string;

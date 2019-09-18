@@ -58,21 +58,21 @@ void RemoveHypotMatchCallback::run(const MatchFinder::MatchResult& result)
         string replacement = "sqrt( (" + string_x + ") * (" + string_x + ") + (" +
                              string_y + ") * (" + string_y + ") )";
 
-        SourceLocation startLoc = hypot_call->getLocStart();
-        SourceLocation endLoc = hypot_call->getLocEnd();
+        SourceLocation startLoc = hypot_call->getBeginLoc();
+        SourceLocation endLoc = hypot_call->getEndLoc();
         CharSourceRange range = CharSourceRange::getTokenRange(startLoc, endLoc);
 
         /* Performing the actual replacement, replacing the source code text. */
 
         Replacement hypot_call_rep(*SM, range, replacement);
         if (Error err = (*replacements)[hypot_call_rep.getFilePath()].add(hypot_call_rep)) {
-            outputExpression(hypot_call, errs());
+            outputSource(hypot_call, errs());
             errs() << "ERROR: Error adding replacement that replaces hypot() with a manual calculation.\n";
             errs() << "\n\n";
             return;
         }
         if (print_debug_output) {
-            outputExpression(hypot_call, outs());
+            outputSource(hypot_call, outs());
             outs() << "replaced with:\n" << replacement << '\n';
             outs() << "\n\n";
         }
@@ -89,7 +89,7 @@ string RemoveHypotMatchCallback::getArgAsString(const Expr* arg, char end) const
 {
     // Now the SourceLocation loc_start, and it's underlying const char* are both pointing
     // to the start of the argument.
-    SourceLocation loc_start = arg->getLocStart();
+    SourceLocation loc_start = arg->getBeginLoc();
     const char* start = SM->getCharacterData(loc_start);
     // We need to calculate the length of the argument, the number of characters it has.
     // An argument ends either with ',' or ')' (if it is the last one).
@@ -104,17 +104,4 @@ string RemoveHypotMatchCallback::getArgAsString(const Expr* arg, char end) const
     // because the string() constructor takes a char* and number of characters from there on.
     //SourceLocation loc_end = loc_start.getLocWithOffset(num_chars);
     return string(SM->getCharacterData(loc_start), num_chars);
-}
-
-
-void RemoveHypotMatchCallback::outputExpression(const CallExpr* expr, raw_ostream& output)
-{
-    SourceLocation loc_start = expr->getLocStart();
-    SourceLocation loc_end = expr->getLocEnd();
-
-    output << string(SM->getCharacterData(loc_start), SM->getCharacterData(loc_end) - SM->getCharacterData(loc_start));
-    output << ")\n";
-    output << "in "<< SM->getFilename(loc_start) << ':';
-    output << SM->getPresumedLineNumber(loc_start) << ':';
-    output << SM->getPresumedColumnNumber(loc_start) << ':' << '\n';
 }

@@ -117,7 +117,7 @@ int main(int argc, const char **argv) {
     // Adjacent string literals are automatically concatenated in C and C++.
     SetVersionPrinter(
         [](raw_ostream& os) {
-            const string version_information = "McLeod Refactoring Tool\n"
+            const string version_information = "ONR Project STAR Tool\n"
                                                "By Konstantin Rebrov\n"
                                                "development version 6.1\n";
             os << version_information;
@@ -199,6 +199,7 @@ int main(int argc, const char **argv) {
 
     ClangTool Tool(*Compilations, SourcePaths,
                    std::make_shared<PCHContainerOperations>(), BaseFS);
+    /// TODO: I can safely omit the BaseFS.
 
     /// StaticAnalysisDiagnosticConsumer is a diagnostic consumer that collects diagnostics from
     /// the Static Analyzer.

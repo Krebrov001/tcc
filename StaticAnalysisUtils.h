@@ -32,7 +32,6 @@ using clang::tidy::ClangTidyOptionsProvider;
 using clang::tidy::ClangTidyGlobalOptions;
 using clang::tidy::ClangTidyOptions;
 using clang::tidy::FileOptionsProvider;
-using clang::tidy::GlobList;
 
 #define DEADCODE_CHECK "clang-analyzer-deadcode.DeadStores"
 
@@ -62,6 +61,10 @@ static std::unique_ptr<ClangTidyOptionsProvider> createOptionsProvider(llvm::Int
     OverrideOptions.SystemHeaders = false;
     OverrideOptions.FormatStyle = "none";
 
+    // GlobalOptions  are just stored and returned to the caller of getGlobalOptions.
+    // DefaultOptions are used for all settings not specified in a configuration file.
+    // OverrideOptions fields are set, they will override whatever options are read from the configuration file.
+    // llvm::IntrusiveRefCntPtr< llvm::vfs::FileSystem > 	FS = nullptr
     return llvm::make_unique<FileOptionsProvider>(GlobalOptions, DefaultOptions, OverrideOptions, std::move(FS));
 }
 

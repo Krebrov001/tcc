@@ -1,13 +1,12 @@
 #ifndef STATIC_ANALYSIS_DIAGNOSTIC_CONSUMER_H
 #define STATIC_ANALYSIS_DIAGNOSTIC_CONSUMER_H
 
-#include "clang-tidy/ClangTidy.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/SourceManager.h"
 
 #include <string>
 #include <vector>
 #include <utility>
-
-using llvm::raw_ostream;
 
 using std::string;
 using std::vector;
@@ -19,7 +18,6 @@ using clang::DiagnosticsEngine;
 using clang::SourceLocation;
 using clang::SourceManager;
 
-using clang::tidy::ClangTidyContext;
 
 class StaticAnalysisDiagnosticConsumer : public DiagnosticConsumer {
   public:
@@ -62,8 +60,6 @@ class StaticAnalysisDiagnosticConsumer : public DiagnosticConsumer {
 
     /* Private member variables. */
 
-    //ClangTidyContext &Context;
-    //DiagnosticsEngine *ExternalDiagEngine;
     // This is a vector of pairs of SourceLocations delimiting the starts and ends respectively
     // of code text which is to be removed from the source code.
     // This vector is recieved from the Clang Static Analyzer. Each time that HandleDiagnostic is

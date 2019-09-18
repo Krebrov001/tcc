@@ -1,6 +1,9 @@
-#include "clang-tidy/ClangTidy.h"
-
 #include "StaticAnalysisDiagnosticConsumer.h"
+#include "clang/Lex/Lexer.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/SourceManager.h"
+
+#include <stdexcept>
 #include <string>
 #include <map>
 #include <utility>  // for std::pair, std::make_pair
@@ -12,14 +15,15 @@ using std::vector;
 using std::pair;
 using std::make_pair;
 
-using llvm::outs;
 using llvm::errs;
-using llvm::raw_ostream;
 
+using clang::Lexer;
+using clang::LangOptions;
 using clang::Diagnostic;
 using clang::DiagnosticsEngine;
 using clang::SourceLocation;
 using clang::SourceManager;
+using clang::tok::semi;
 
 
 void StaticAnalysisDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level DiagLevel, const Diagnostic &Info)
@@ -40,6 +44,7 @@ void StaticAnalysisDiagnosticConsumer::HandleDiagnostic(DiagnosticsEngine::Level
 
         // BUG: The below code has a problem:
         // terminate called after throwing an instance of 'std::length_error'
+        //   what():  basic_string::_M_create
         //SourceLocation loc_end = Lexer::findLocationAfterToken(loc_start, semi, *SM, LangOptions(), false);
 
         // Now this code does the same thing but it does not throw an exception.

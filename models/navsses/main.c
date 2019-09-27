@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
 	config.output_names = result_names;
 	config.num_outputs = NUM_RESULTS;
 	config.initialize_p = complete_system_io_initialize;
-	config.step_p = complete_system_io_step;
+	config.step0_p = complete_system_io_step;
 	config.terminate_p = complete_system_io_terminate;
 	config.get_outputs_p = get_outputs;
 	config.reference_filename = "../dat_files/navsses_model.dat";

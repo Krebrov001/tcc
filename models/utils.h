@@ -4,7 +4,9 @@ struct sim_config_T {
 	unsigned long num_outputs;              // Number of outputs from the model
 	const char **output_names;              // Name of each model output
 	void (*initialize_p)(void);             // Model initialize function, skipped if NULL
-	void (*step_p)(void);                   // Model step function, must exist
+	void (*step0_p)(void);                  // Base rate model step function, must exist, smallest time step
+	void (*step1_p)(void);                  // Higher reate model step function, skipped if NULL
+	unsigned int step1_multirate;           // Number of step0 steps per step1 step
 	void (*terminate_p)(void);              // Model terminate function, skipped if NULL
 	void (*get_outputs_p)(double *outputs); // Get outputs from model
 	char save_outputs;                      // Flag to save model outputs when 1

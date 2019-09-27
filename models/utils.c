@@ -135,8 +135,8 @@ int run_sim(const struct sim_config_T *config) {
 		(*config->initialize_p)();
 	}
 
-	if( config->step_p == NULL ){
-		fprintf(stderr, "ERROR: Model step function undefined.\n");
+	if( config->step0_p == NULL ){
+		fprintf(stderr, "ERROR: Base rate model step function undefined.\n");
 		free(outputs);
 		free(reference_data);
 		free(abs_errs);
@@ -144,9 +144,18 @@ int run_sim(const struct sim_config_T *config) {
 		return 1;
 	}
 
+	unsigned int multistep = 0;
 	for( long step = 0; step < config->num_steps; step++ ){
 		// Perform one step through the module
-		(*config->step_p)();
+		(*config->step0_p)();
+
+		// Perform multirate step as needed
+		if( config->step1_p != NULL ){
+			if( multistep == 0 ){
+				(*config->step1_p)();
+			}
+			++multistep;
+		}
 
 		// Get the current outputs
 		(*config->get_outputs_p)(outputs);

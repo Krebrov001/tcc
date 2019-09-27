@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
 	config.output_names = result_names;
 	config.num_outputs = NUM_OUTPUTS;
 	config.initialize_p = power_fivecells_initialize;
-	config.step_p = power_fivecells_step;
+	config.step0_p = power_fivecells_step;
 	config.terminate_p = NULL; // None
 	config.get_outputs_p = get_outputs;
 	config.reference_filename = "../dat_files/power_fivecells.dat";

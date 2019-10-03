@@ -1,6 +1,6 @@
 CC=clang
 DISABLED_WARNINGS=-Wno-unused #Project has unused variables by default
-CFLAGS=-Wall $(DISABLED_WARNINGS) -I ../
+CFLAGS=-Wall $(DISABLED_WARNINGS) -I . -I ../ -I ../simulink_include
 LIBS=-lopenlibm
 EXE=power_fivecells
 

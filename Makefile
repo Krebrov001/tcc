@@ -9,7 +9,7 @@ LLVM_PROJECT_DIR := /mnt/c/Users/winko/Documents/Clang_new/llvm-project
 BINDIR           := $(realpath $(dir $(shell which llvm-config)))
 LLVMCONFIG       := $(BINDIR)/llvm-config
 LLVMCOMPONENTS   := profiledata bitreader option mcparser
-CXXFLAGS         := $(shell $(LLVMCONFIG) --cxxflags) -fcxx-exceptions -g -Wall\
+CXXFLAGS         := $(shell $(LLVMCONFIG) --cxxflags) -std=c++14 -fcxx-exceptions -g -Wall\
                     -I $(LLVM_PROJECT_DIR)/clang-tools-extra\
 					-I $(LLVM_PROJECT_DIR)
 # If object or library AA needs a symbol from library BB, then AA should come before library BB in the command-
@@ -18,8 +18,6 @@ CXXFLAGS         := $(shell $(LLVMCONFIG) --cxxflags) -fcxx-exceptions -g -Wall\
 # Libraries that are dependents come before their dependencies.
 LDLIBS := \
     -L $(LLVM_PROJECT_DIR)/build/lib\
-	-lclangTidyUtils\
-	-lclangTidy\
 	-lclangStaticAnalyzerFrontend\
 	-lclangStaticAnalyzerCheckers\
 	-lclangStaticAnalyzerCore\
@@ -71,7 +69,9 @@ CXX_FILES  := refactoring_tool.cpp \
 			  RemoveVariablesMatchCallback.cpp \
 			  FindVariablesMatchCallback.cpp \
 			  RemoveAssignmentMatchCallback.cpp \
-			  StaticAnalysisDiagnosticConsumer.cpp
+			  StaticAnalysisDiagnosticConsumer.cpp \
+			  StaticAnalysisAction.cpp \
+			  StaticAnalysisActionFactory.cpp
 
 O_FILES    := $(CXX_FILES:cpp=o)
 
@@ -104,6 +104,8 @@ FindVariablesMatchCallback.o: FindVariablesMatchCallback.cpp FindVariablesMatchC
 RemoveVariablesMatchCallback.o: RemoveVariablesMatchCallback.cpp RemoveVariablesMatchCallback.h BaseMatchCallback.h
 RemoveAssignmentMatchCallback.o: RemoveAssignmentMatchCallback.cpp RemoveAssignmentMatchCallback.h BaseMatchCallback.h
 StaticAnalysisDiagnosticConsumer.o : StaticAnalysisDiagnosticConsumer.cpp StaticAnalysisDiagnosticConsumer.h
+StaticAnalysisActionAction.o : StaticAnalysisAction.cpp StaticAnalysisAction.h StaticAnalysisDiagnosticConsumer.h StaticAnalysisASTConsumer.h
+StaticAnalysisActionFactory.o : StaticAnalysisActionFactory.cpp StaticAnalysisActionFactory.h
 
 
 # Restore model program to original state

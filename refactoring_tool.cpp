@@ -11,15 +11,14 @@
 #include "RemovePointerMatchCallback.h"
 #include "RemoveVariablesMatchCallback.h"
 #include "RemoveAssignmentMatchCallback.h"
-#include "StaticAnalysisDiagnosticConsumer.h"
-#include "StaticAnalysisUtils.h"
+#include "StaticAnalysisActionFactory.h"
 
 // Header files for Clang and LLVM libraries.
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Refactoring.h"
-#include "clang-tidy/ClangTidy.h"
-#include "clang-tidy/ClangTidyModule.h"
+//#include "clang-tidy/ClangTidy.h"
+//#include "clang-tidy/ClangTidyModule.h"
 #include "llvm/Support/CommandLine.h"
 
 #include <string>
@@ -50,7 +49,6 @@ using llvm::cl::ValueRequired;
 using llvm::cl::SetVersionPrinter;
 using llvm::cl::ParseCommandLineOptions;
 
-using clang::DiagnosticsEngine;
 using clang::PCHContainerOperations;
 using clang::DiagnosticIDs;
 using clang::DiagnosticOptions;
@@ -63,8 +61,11 @@ using clang::tooling::FixedCompilationDatabase;
 
 using clang::ast_matchers::MatchFinder;
 
+/*
 using clang::tidy::ClangTidyContext;
 using clang::tidy::ClangTidyOptionsProvider;
+using clang::tidy::ClangTidyASTConsumerFactory;
+*/
 
 
 /* Command line options description: */
@@ -167,70 +168,28 @@ int main(int argc, const char **argv) {
 
     /* Setup and run the Static Analyzer. */
 
-    // Utilities for managing the file system inside of clang-tidy.
-    // llvm::IntrusiveRefCntPtr is a reference-counted smart pointer.
-    // vfs::OverlayFileSystem is an implementation of OverlayFS.
-    // vfs::getRealFileSystem() returns a
-    //   static IntrusiveRefCntPtr<FileSystem> FS(new RealFileSystem(true))
-    IntrusiveRefCntPtr<OverlayFileSystem> BaseFS(
-        new OverlayFileSystem(getRealFileSystem())
-    );
+    ClangTool Tool(*Compilations, SourcePaths);
 
-    // createOptionsProvider() returns a static std::unique_ptr< ClangTidyOptionsProvider >
-    // ClangTidyOptionsProvider is an abstract interface for retrieving various ClangTidy options.
-    auto OwningOptionsProvider = createOptionsProvider(BaseFS);
+    // The first argument is a list of compilations.
+	// The second argument is a list of source files to parse.
+	RefactoringTool tool1(*Compilations, SourcePaths);
 
-    // std::unique_ptr::get() returns the raw pointer, ClangTidyOptionsProvider*
-    // So I want to use the ease of access features (syntactic and semantic) of raw pointer,
-    // but I also want to keep the smart pointer to automatically dispose of the dynamic object
-    // after it's lifetime expires.
-    auto *OptionsProvider = OwningOptionsProvider.get();
-
-    // If the pointer is null.
-    if (!OptionsProvider)
-        return 1;
-
-    bool AllowEnablingAnalyzerAlphaCheckers = false;
-
-    // Every ClangTidyCheck reports errors through a DiagnosticsEngine provided by this context.
-    // This context takes two parameters: the smart pointer to the ClangTidyOptionsProvider, a bool
-    // whether we want to enable experimental alpha checkers from the static analyzer (false).
-    ClangTidyContext Context(std::move(OwningOptionsProvider), AllowEnablingAnalyzerAlphaCheckers);
-
-    ClangTool Tool(*Compilations, SourcePaths,
-                   std::make_shared<PCHContainerOperations>(), BaseFS);
-    /// TODO: I can safely omit the BaseFS.
-
-    /// StaticAnalysisDiagnosticConsumer is a diagnostic consumer that collects diagnostics from
-    /// the Static Analyzer.
-    StaticAnalysisDiagnosticConsumer DiagConsumer;
-
-    /// A DiagnosticsEngine provides a way to report a diagnostic via its Report method
-    ///   and then to allow configuration of various “meta” aspects of diagnostic reporting,
-    ///   such as what diagnostics will be suppressed, whether warnings should show as errors, etc.
-    DiagnosticsEngine DE(new DiagnosticIDs(), new DiagnosticOptions(),
-                         &DiagConsumer, /*ShouldOwnClient=*/false);
-
-    // Add the DiagnosticsEngine to the ClangTidyContext.
-    /// Every ClangTidyCheck reports errors through a DiagnosticsEngine provided by this context.
-    //
-    /// Sets the DiagnosticsEngine that diag() will emit diagnostics to.
-    ///   This allows our checks to send us diagnostics.
-    Context.setDiagnosticsEngine(&DE);
-
-    // Set a DiagnosticConsumer to the ClangTool to use during parsing.
-    Tool.setDiagnosticConsumer(&DiagConsumer);
+    //// Remove Assignment details
+    // This CallBack class gets the SourceLocations from the StaticAnalysisDiagnosticConsumer, and
+    // does the replacements.
+    RemoveAssignmentMatchCallback analysis_match_callback(&tool1.getReplacements());
 
     // Create a custom ActionFactory.
-    ActionFactory Factory(Context, BaseFS);
+    StaticAnalysisActionFactory Factory(analysis_match_callback.getVector());
 
     // Runs the Static Analyzer over all files specified in the command line (like RefactoringTool).
-    // Fills up the DiagnosticConsumer with the information.
+    // Fills up the StaticAnalysisDiagnosticConsumer with the information.
     auto result = Tool.run(&Factory);
     if (result != 0) {
 		errs() << "Error in running the Static Analyzer: " << result << "\n";
 		return result;
 	}
+
 
     /* Setup and run the first round of refactorings. */
 
@@ -238,16 +197,13 @@ int main(int argc, const char **argv) {
      * (one input file - one output file).
      *	This is default RefactoringTool behaviour.
 	 */
-	// The first argument is a list of compilations.
-	// The second argument is a list of source files to parse.
-	RefactoringTool tool1(*Compilations, SourcePaths);
+
 
     // This first MatchFinder is responsible for applying refactorings in the first round.
 	MatchFinder mf1;
 
-    //// Remove Assignment details
-    // This CallBack class gets the results from the DiagConsumer, and does the replacements.
-    RemoveAssignmentMatchCallback analysis_match_callback(&tool1.getReplacements(), DiagConsumer.getSourcePairs());
+
+
     if (RunRemoveAssignment) {
         analysis_match_callback.getASTmatchers(mf1);
     }

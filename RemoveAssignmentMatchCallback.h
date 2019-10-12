@@ -36,24 +36,10 @@ class RemoveAssignmentMatchCallback : public BaseMatchCallback
      *                                    Replacements objects, which is what we will use to
      *                                    actually perform the source code replacements in the
      *                                    refactoring process.
-     *
-     * @param const vector< pair<SourceLocation, SourceLocation> >& OtherPairs - This is a vector
-     *              of pairs of SourceLocations marking the start and end respectively of the
-     *              unused assignments which are to be replaced. This vector is created by the
-     *              class StaticAnalysisDiagnosticConsumer. The only valid argument for this
-     *              parameter when calling the constructor is DiagConsumer.getSourcePairs()
-     *                The SourcePairs vector of this object is initalized as an empty vector.
-     *                Then all elements from the OtherPairs vector are copied into the SourcePairs
-     *                vector.
      */
-    explicit RemoveAssignmentMatchCallback(map<string, Replacements> * replacements,
-                                   const vector< pair<SourceLocation, SourceLocation> >& OtherPairs)
+    explicit RemoveAssignmentMatchCallback(map<string, Replacements> * replacements)
       : BaseMatchCallback(), replacements(replacements), SourcePairs{}
-    {
-        for (auto SourcePair : OtherPairs) {
-            SourcePairs.push_back(SourcePair);
-        }
-    }
+    {}
 
     /**
      * This method creates and "returns" the AST matchers that match expressions specifically
@@ -79,9 +65,18 @@ class RemoveAssignmentMatchCallback : public BaseMatchCallback
     void run(const MatchFinder::MatchResult& result) override;
 
     /**
+     * This method returns a reference to the private data member
+     * vector< pair<SourceLocation, SourceLocation> > SourcePairs
+     * This reference to the vector must then be passed into ActionFactory::ActionFactory(),
+     * which passes the reference onto the class StaticAnalysisDiagnosticConsumer, which fills this
+     * vector with the SourceLocations of unused assignments.
+     */
+    inline vector< pair<SourceLocation, SourceLocation> >& getVector() { return SourcePairs; }
+
+    /**
 	 * Returns the number of successful removals of unreferenced assignments.
 	 */
-	unsigned int getNumAssignmentRemovals() const { return num_unused_assignments; }
+	inline unsigned int getNumAssignmentRemovals() const { return num_unused_assignments; }
 
   private:
 
@@ -91,9 +86,10 @@ class RemoveAssignmentMatchCallback : public BaseMatchCallback
 
     // This is a vector of pairs of SourceLocations delimiting the starts and ends respectively
     // of code text which is to be removed from the source code.
-    // This vector is recieved from the class StaticAnalysisDiagnosticConsumer, and it is initlaized
-    // and filled up in the constructor.
-    // The given code text snippets are removed int he run() method by looping through this vector
+    // This vector is given as a reference to the class StaticAnalysisDiagnosticConsumer, which is
+    // used to identify the portions of source code that are to be removed, and it fills up the
+    // the vector with this information.
+    // The given code text snippets are removed in the run() method by looping through this vector
     // and performing replacements.
     vector< pair<SourceLocation, SourceLocation> > SourcePairs;
     // The number of successful removals of unreferenced assignments.

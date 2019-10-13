@@ -314,10 +314,13 @@ int main(int argc, const char **argv) {
         if (RunMakeStatic) {
             unsigned int num_free_calls = make_static_match_callback.num_free_calls();
             unsigned int num_calloc_calls = make_static_match_callback.num_calloc_calls();
+            unsigned int num_variable_replacements = make_static_match_callback.num_variable_replacements();
             num_refactorings += num_free_calls;
             num_refactorings += num_calloc_calls;
+            num_refactorings += num_variable_replacements;
             outs() << "Found " << num_free_calls << " calls to free()\n";
 	        outs() << "Found " << num_free_calls << " calls to calloc()\n";
+            outs() << "Replaced " << num_variable_replacements << " pointers with arrays.\n";
         }
 
         if (RunRemovePointer) {

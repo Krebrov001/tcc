@@ -113,7 +113,7 @@ int main(int argc, const char **argv) {
         [](raw_ostream& os) {
             const string version_information = "ONR Project STAR Tool\n"
                                                "By Konstantin Rebrov\n"
-                                               "development version 6.1\n";
+                                               "development version 8.0\n";
             os << version_information;
         }
     );
@@ -149,6 +149,8 @@ int main(int argc, const char **argv) {
     // to bool. It's easier to work with build in data types than classes.
     print_debug_output = DebugOutput;
 
+    bool RunStaticAnalyzer = false;
+
     // If the user specified -all option, then all refactorings should be enabled.
     if (RunAll) {
         RunRemoveMemcpy     = true;
@@ -157,56 +159,63 @@ int main(int argc, const char **argv) {
         RunRemoveHypot      = true;
         RunRemoveVariables  = true;
         RunRemoveAssignment = true;
+        RunStaticAnalyzer   = true;
     }
 
-    /* Setup and run the Static Analyzer. */
-
-    ClangTool Tool(*Compilations, SourcePaths);
+    // Do not run the Static Analyzer unless you really need to.
+    // Static Analysis is an exponential time algorithm, so it should not be run every time
+    // the program runs.
+    // Only the list of refactorings that depend on the Clang Static Analyzer should be in the
+    // if ()
+    if (RunRemoveAssignment /* || ... */) {
+        RunStaticAnalyzer = true;
+    }
 
     // The first argument is a list of compilations.
-	// The second argument is a list of source files to parse.
-	RefactoringTool tool1(*Compilations, SourcePaths);
+    // The second argument is a list of source files to parse.
+    RefactoringTool tool1(*Compilations, SourcePaths);
 
     //// Remove Assignment details
-    // This CallBack class gets the SourceLocations from the StaticAnalysisDiagnosticConsumer, and
-    // does the replacements.
+    // This CallBack class gets the SourceLocations from the StaticAnalysisDiagnosticConsumer,
+    // and applies the replacements.
     RemoveAssignmentMatchCallback analysis_match_callback(&tool1.getReplacements());
 
-    // Create a custom ActionFactory.
-    StaticAnalysisActionFactory Factory(analysis_match_callback.getVector());
+    if (RunStaticAnalyzer) {
+        /* Setup and run the Static Analyzer. */
 
-    // Runs the Static Analyzer over all files specified in the command line (like RefactoringTool).
-    // Fills up the StaticAnalysisDiagnosticConsumer with the information.
-    auto result = Tool.run(&Factory);
-    if (result != 0) {
-		errs() << "Error in running the Static Analyzer: " << result << "\n";
-		return result;
-	}
+        ClangTool Tool(*Compilations, SourcePaths);
 
+        // Create a custom ActionFactory.
+        StaticAnalysisActionFactory Factory(analysis_match_callback.getVector());
 
-    /* Setup and run the first round of refactorings. */
+        // Runs the Static Analyzer over all files specified in the command line (like RefactoringTool).
+        // Fills up the StaticAnalysisDiagnosticConsumer with the information.
+        auto result = Tool.run(&Factory);
+        if (result != 0) {
+		    errs() << "Error in running the Static Analyzer: " << result << "\n";
+		    return result;
+	    }
+    //}
 
-    /* Run the Clang compiler for the each input file separately
-     * (one input file - one output file).
-     *	This is default RefactoringTool behaviour.
-	 */
+        /* Setup and run the first round of refactorings. */
+        // The first round is only for applying the refactorings that are dependent on the
+        // Static Analysis. AST-based refactorings should be put in the second round of
+        // refactorings.
 
+        // This first MatchFinder is responsible for applying refactorings in the first round.
+	    MatchFinder mf1;
 
-    // This first MatchFinder is responsible for applying refactorings in the first round.
-	MatchFinder mf1;
+        if (RunRemoveAssignment) {
+            analysis_match_callback.getASTmatchers(mf1);
+        }
 
-
-
-    if (RunRemoveAssignment) {
-        analysis_match_callback.getASTmatchers(mf1);
-    }
-
-    // Run the RefactoringTool to perform the first round of refactorings.
-    auto result1 = tool1.runAndSave(newFrontendActionFactory(&mf1).get());
-    if (result1 != 0) {
-        errs() << "Error in the first round of refactorings: " << result1 << "\n";
-        return result1;
-    }
+        // Run the RefactoringTool to perform the first round of refactorings.
+        auto result1 = tool1.runAndSave(newFrontendActionFactory(&mf1).get());
+        if (result1 != 0) {
+            errs() << "Error in the first round of refactorings: " << result1 << "\n";
+            return result1;
+        }
+    }  // if (RunStaticAnalyzer)
 
     /* Setup and run the second round of refactorings. */
 

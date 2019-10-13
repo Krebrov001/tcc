@@ -76,7 +76,9 @@ class StaticAnalysisAction : public ASTFrontendAction {
      * @param StringRef File - The current file that is being processed.
      *
      * @return unique_ptr<ASTConsumer> - A StaticAnalysisDiagnosticConsumer is attached to this
-     *         ASTConsumer.
+     *         ASTConsumer. The returned object is either a StaticAnalysisASTConsumer or a
+     *         MultiplexConsumer. Check the *.cpp file to see the exact type of object that is
+     *         returned.
      */
     unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance& Compiler, StringRef File) override;
 

@@ -17,8 +17,6 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/CompilationDatabase.h"
 #include "clang/Tooling/Refactoring.h"
-//#include "clang-tidy/ClangTidy.h"
-//#include "clang-tidy/ClangTidyModule.h"
 #include "llvm/Support/CommandLine.h"
 
 #include <string>
@@ -42,6 +40,7 @@ using llvm::vfs::getRealFileSystem;
 
 using llvm::cl::opt;
 using llvm::cl::desc;
+using llvm::cl::list;
 using llvm::cl::Positional;
 using llvm::cl::OneOrMore;
 using llvm::cl::extrahelp;
@@ -61,12 +60,6 @@ using clang::tooling::FixedCompilationDatabase;
 
 using clang::ast_matchers::MatchFinder;
 
-/*
-using clang::tidy::ClangTidyContext;
-using clang::tidy::ClangTidyOptionsProvider;
-using clang::tidy::ClangTidyASTConsumerFactory;
-*/
-
 
 /* Command line options description: */
 
@@ -75,22 +68,22 @@ using clang::tidy::ClangTidyASTConsumerFactory;
 // This line of code has to be above the ParseCommandLineOptions function call, otherwise
 // it will fail to parse the -debug option out, and the refactoring_tool executable will
 // fail to recognize that command line option.
-llvm::cl::opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
+opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
 
 // Options to turn on various refactorings are optional.
-llvm::cl::opt<bool> RunAll("all", desc("This options turns on all supported refactorings."));
-llvm::cl::opt<bool> RunRemoveMemcpy("remove-memcpy", desc("This option turns on replacement of memcpy()."));
-llvm::cl::opt<bool> RunMakeStatic("make-static", desc("This option turns all dynamic memory allocations "
+opt<bool> RunAll("all", desc("This options turns on all supported refactorings."));
+opt<bool> RunRemoveMemcpy("remove-memcpy", desc("This option turns on replacement of memcpy()."));
+opt<bool> RunMakeStatic("make-static", desc("This option turns all dynamic memory allocations "
                                             "into stack ones, gets rid of calloc() and free()."));
-llvm::cl::opt<bool> RunRemovePointer("remove-pointer", desc("This option turns on removal of the global pointer."));
-llvm::cl::opt<bool> RunRemoveHypot("remove-hypot", desc("This option turns on replacement of hypot()."));
-llvm::cl::opt<bool> RunRemoveVariables("remove-variables", desc("This option removes unreferenced variables."));
-llvm::cl::opt<bool> RunRemoveAssignment("remove-assignment", desc("This option removes unreferenced assignments."));
+opt<bool> RunRemovePointer("remove-pointer", desc("This option turns on removal of the global pointer."));
+opt<bool> RunRemoveHypot("remove-hypot", desc("This option turns on replacement of hypot()."));
+opt<bool> RunRemoveVariables("remove-variables", desc("This option removes unreferenced variables."));
+opt<bool> RunRemoveAssignment("remove-assignment", desc("This option removes unreferenced assignments."));
 
 // Option specifies the build path/directory.
-llvm::cl::opt<string> BuildPath(Positional, desc("[<build-path>]"));
+opt<string> BuildPath(Positional, desc("[<build-path>]"));
 // Options specifying the source files to refactor are one or more required.
-llvm::cl::list<string> SourcePaths(Positional, desc("<source0> [... <sourceN>]"), OneOrMore, ValueRequired);
+list<string> SourcePaths(Positional, desc("<source0> [... <sourceN>]"), OneOrMore, ValueRequired);
 
 // Define an additional help message to be printed.
 extrahelp CommonHelp(

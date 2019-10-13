@@ -104,7 +104,7 @@ FindVariablesMatchCallback.o: FindVariablesMatchCallback.cpp FindVariablesMatchC
 RemoveVariablesMatchCallback.o: RemoveVariablesMatchCallback.cpp RemoveVariablesMatchCallback.h BaseMatchCallback.h
 RemoveAssignmentMatchCallback.o: RemoveAssignmentMatchCallback.cpp RemoveAssignmentMatchCallback.h BaseMatchCallback.h
 StaticAnalysisDiagnosticConsumer.o : StaticAnalysisDiagnosticConsumer.cpp StaticAnalysisDiagnosticConsumer.h
-StaticAnalysisActionAction.o : StaticAnalysisAction.cpp StaticAnalysisAction.h StaticAnalysisDiagnosticConsumer.h StaticAnalysisASTConsumer.h
+StaticAnalysisAction.o : StaticAnalysisAction.cpp StaticAnalysisAction.h StaticAnalysisDiagnosticConsumer.h
 StaticAnalysisActionFactory.o : StaticAnalysisActionFactory.cpp StaticAnalysisActionFactory.h
 
 

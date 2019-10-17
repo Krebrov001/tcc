@@ -1,7 +1,9 @@
 #All models (by directory name)
 MODELS := \
 	navsses \
-	power_fivecells
+	power_fivecells \
+	power_converters_switching_devices \
+	power_converters_switching_function
 
 # Verify the modified code generates the correct results
 .PHONY: verify

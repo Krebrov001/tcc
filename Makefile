@@ -95,9 +95,9 @@ StaticAnalysisActionFactory.o : StaticAnalysisActionFactory.cpp StaticAnalysisAc
 
 
 # Restore model program to original state
-.PHONY: restore_model
-restore_model:
-	git checkout -- navsses_model/
+.PHONY: restore_models
+restore_models:
+	git checkout -- models/navsses/
 
 # Verify the modified code generates the correct results
 .PHONY: verify
@@ -113,11 +113,11 @@ tidy:
 # Run the refactoring_tool program
 .PHONY: run
 run: $(addprefix $(BINDIR)/,$(EXECUTABLE))
-	$(EXECUTABLE) -all navsses_model/complete_system_io.c --
+	$(EXECUTABLE) -all models/navsses/complete_system_io.c --
 
 .PHONY: run-verbose
 run-verbose: $(addprefix $(BINDIR)/,$(EXECUTABLE))
-	$(EXECUTABLE) -debug -all navsses_model/complete_system_io.c --
+	$(EXECUTABLE) -debug -all models/navsses/complete_system_io.c --
 
 .PHONY: clean
 clean:

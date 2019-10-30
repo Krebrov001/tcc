@@ -97,7 +97,7 @@ StaticAnalysisActionFactory.o : StaticAnalysisActionFactory.cpp StaticAnalysisAc
 # Restore model program to original state
 .PHONY: restore_models
 restore_models:
-	git checkout -- models/navsses/
+	git checkout -- models/
 
 # Verify the modified code generates the correct results
 .PHONY: verify

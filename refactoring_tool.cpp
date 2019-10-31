@@ -68,7 +68,7 @@ using clang::ast_matchers::MatchFinder;
 
 // Apply a custom category to all command-line options so that they are the
 // only ones displayed.
-OptionCategory StarToolCategory("star-tool options");
+OptionCategory StarToolCategory("refactoring_tool options");
 
 // <bool> Says that this option takes no argument, and is to be treated as a bool value only.
 // If this option is set, then the variable becomes true, otherwise it becomes false.
@@ -77,15 +77,22 @@ OptionCategory StarToolCategory("star-tool options");
 // fail to recognize that command line option.
 opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
 
+// Define the list of tool specific command line options.
+#define OPTIONS_LIST  \
+    X(RunRemoveMemcpy, "remove-memcpy", "This option turns on replacement of memcpy().")  \
+    X(RunMakeStatic, "make-static", "This option turns all dynamic memory allocations "   \
+                                    "into stack ones, gets rid of calloc() and free().")  \
+    X(RunRemovePointer, "remove-pointer", "This option turns on removal of the global pointer.")  \
+    X(RunRemoveHypot, "remove-hypot", "This option turns on replacement of hypot().")     \
+    X(RunRemoveVariables, "remove-variables", "This option removes unreferenced variables.")  \
+    X(RunRemoveAssignment, "remove-assignment", "This option removes unreferenced assignments.")
+
 // Options to turn on various refactorings are optional.
 opt<bool> RunAll("all", desc("This options turns on all supported refactorings."));
-opt<bool> RunRemoveMemcpy("remove-memcpy", desc("This option turns on replacement of memcpy()."));
-opt<bool> RunMakeStatic("make-static", desc("This option turns all dynamic memory allocations "
-                                            "into stack ones, gets rid of calloc() and free()."));
-opt<bool> RunRemovePointer("remove-pointer", desc("This option turns on removal of the global pointer."));
-opt<bool> RunRemoveHypot("remove-hypot", desc("This option turns on replacement of hypot()."));
-opt<bool> RunRemoveVariables("remove-variables", desc("This option removes unreferenced variables."));
-opt<bool> RunRemoveAssignment("remove-assignment", desc("This option removes unreferenced assignments."));
+#define X(VariableName, command_argument, description)  \
+opt<bool> VariableName(command_argument, desc(description));
+OPTIONS_LIST
+#undef X
 
 // Option specifies the build path/directory.
 //opt<string> BuildPath(Positional, desc("[<build-path>]"));
@@ -95,6 +102,14 @@ opt<bool> RunRemoveAssignment("remove-assignment", desc("This option removes unr
 
 // Define an additional help message to be printed.
 extrahelp CommonHelp(
+    "\n"
+    "  --" "debug" "\t" "This option enables diagnostic output." "\n"
+    "  --" "all" "\t" "This options turns on all supported refactorings." "\n"
+    #define X(VariableName, command_argument, description)  \
+    "  --" command_argument "\t" description "\n"
+    OPTIONS_LIST
+    #undef X
+    "\n"
     "\nArguments above mentioned in [ ] are optional (not required).\n"
     "<build-path> should be specified if specific compiler options\n"
     "are not provided on the command line.\n"
@@ -121,7 +136,7 @@ int main(int argc, const char **argv) {
         [](raw_ostream& os) {
             const string version_information = "ONR Project STAR Tool\n"
                                                "By Konstantin Rebrov\n"
-                                               "development version 8.0\n";
+                                               "development version Oct 2019\n";
             os << version_information;
         }
     );
@@ -142,13 +157,10 @@ int main(int argc, const char **argv) {
 
     // If the user specified -all option, then all refactorings should be enabled.
     if (RunAll) {
-        RunRemoveMemcpy     = true;
-        RunMakeStatic       = true;
-        RunRemovePointer    = true;
-        RunRemoveHypot      = true;
-        RunRemoveVariables  = true;
-        RunRemoveAssignment = true;
-        RunStaticAnalyzer   = true;
+        #define X(VariableName, command_argument, description)  \
+        VariableName = true;
+        OPTIONS_LIST
+        #undef X
     }
 
     // Do not run the Static Analyzer unless you really need to.

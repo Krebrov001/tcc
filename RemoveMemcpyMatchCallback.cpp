@@ -77,6 +77,14 @@ void RemoveMemcpyMatchCallback::getASTmatchers(MatchFinder& mf)
 
 void RemoveMemcpyMatchCallback::run(const MatchFinder::MatchResult& result)
 {
+    // run() method is called whenever a new match is found.
+    // Each run() corresponds to a new match, and the data in between the matches should
+    // not be stored, therefore the type_string should be cleared before staring to run each mach.
+    // Inside getArgString() it is assumed that the type_string is initialized to the empty string,
+    // and checking against the empty string is used to determine if this is the first argument
+    // processed or if this is a subsequent argument processed.
+    type_string = "";
+
     ++num_matches_found;
     // The value of the pointer itself can be modified,
     // but the underlying object which it points to is const.

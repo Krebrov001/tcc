@@ -1,6 +1,6 @@
 #include "StaticAnalysisAction.h"
 #include "StaticAnalysisDiagnosticConsumer.h"
-//#include "StaticAnalysisASTConsumer.h"
+#include "StaticAnalysisASTConsumer.h"
 
 #include "clang/AST/ASTConsumer.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
@@ -48,6 +48,8 @@ unique_ptr<ASTConsumer> StaticAnalysisAction::CreateASTConsumer(
     SM = &Compiler.getSourceManager();
     ast_context = &Compiler.getASTContext();
 
+    // Create a new MatchFinder. It is used to create a StaticAnalysisASTConsumer, which is then
+    // returned from the function.
     unique_ptr<MatchFinder> Finder( make_unique<MatchFinder>() );
 
     vector< unique_ptr<ASTConsumer> > Consumers;
@@ -78,25 +80,15 @@ unique_ptr<ASTConsumer> StaticAnalysisAction::CreateASTConsumer(
     );
     Consumers.push_back(std::move(AnalysisConsumer));
 
-    // For now, the feature of using the Static Analyzer for deadcode.DeadStores works well
-    // using just the MultiplexConsumer. But in the future, I may have to use the custom
-    // ASTConsumer again.
-    // StaticAnalysisASTConsumer is derived from MultiplexConsumer.
-    // It seems that MultiplexConsumer is the way to go if you want to use the same AST for custom
-    // frontend action and Clang static analysis.
-    // MultiplexConsumer itself derived from ASTConsumer, and I don't know why it requires a vector
-    // of ASTConsumers as a data member.
-    // However, returning just the unique_ptr<AnalysisASTConsumer> AnalysisConsumer from this method
-    // will not work, as it fails to run the Static Analyzer.
-    return llvm::make_unique<MultiplexConsumer>( std::move(Consumers) );
-
     // An instance of the StaticAnalysisASTConsumer is returned, which contains both a
     // MultiplexConsumer base class, and an additional unique_ptr<MatchFinder> data member.
-    // It appears that for the time being this StaticAnalysisASTConsumer class is not needed,
-    // and a unique_ptr to a MultiplexConsumer can be just returned.
-    /*
+    // The unique_ptr<MatchFinder> Finder that is created in the code above has to be passed onto
+    // the ClangTool. The StaticAnalysisASTConsumer class is absolutely required.
+    // Returning just a unique_ptr to a MultiplexConsumer will not work as you might get a
+    // segmentation fault. They key piece here is that the StaticAnalysisASTConsumer class also has
+    // a unique_ptr<MatchFinder> Finder as a data member, which is necessary for my application.
     return llvm::make_unique<StaticAnalysisASTConsumer>(
         std::move(Consumers), std::move(Finder)
     );
-    */
+    //return llvm::make_unique<MultiplexConsumer>( std::move(Consumers) );
 }

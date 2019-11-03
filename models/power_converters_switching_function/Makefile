@@ -16,6 +16,7 @@ $(EXE): $(MODEL_SRCS) ../utils.c
 .PHONY: refactor
 refactor:
 	echo 'power_converters_switching_function'
+	refactoring_tool --all --debug $(SIMULINK_SRCS) $(MODEL_SRCS) ../utils.c -- $(CFLAGS) $(LIBS)
 
 
 # Execute the simulation and only print if there's an error

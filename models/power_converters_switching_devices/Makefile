@@ -11,10 +11,17 @@ all: $(EXE)
 $(EXE): $(MODEL_SRCS) ../utils.c
 	$(CC) $(CFLAGS) -o $(EXE) $(SIMULINK_SRCS) $(MODEL_SRCS) ../utils.c $(LIBS)
 
+
+# Run the refactoring_tool on the code.
+.PHONY: refactor
+	echo 'power_converters_switching_devices'
+
+
 # Execute the simulation and only print if there's an error
 .PHONY: verify
 verify: $(EXE)
 	./$(EXE)
+
 
 .PHONY: clean
 clean:

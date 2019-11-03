@@ -12,6 +12,7 @@ complete_system: main.c complete_system_io.c complete_system_io_data.c rt_nonfin
 .PHONY: refactor
 refactor:
 	echo 'navsses'
+	refactoring_tool --all --debug complete_system main.c complete_system_io.c complete_system_io_data.c rt_nonfinite.c rt_look1d.c rtGetNaN.c rtGetInf.c rt_look.c -- $(CFLAGS) -I .. $(LIBS)
 
 
 # Execute the simulation and print results

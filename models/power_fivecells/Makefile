@@ -12,6 +12,7 @@ $(EXE): main.c power_fivecells.c power_fivecells_data.c ../utils.c
 
 # Run the refactoring_tool on the code.
 .PHONY: refactor
+refactor:
 	echo 'power_fivecells'
 	refactoring_tool --all --debug main.c power_fivecells.c power_fivecells_data.c ../utils.c -- $(CFLAGS) $(LIBS)
 

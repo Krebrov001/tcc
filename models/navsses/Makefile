@@ -10,6 +10,7 @@ complete_system: main.c complete_system_io.c complete_system_io_data.c rt_nonfin
 
 # Run the refactoring_tool on the code.
 .PHONY: refactor
+refactor:
 	echo 'navsses'
 
 

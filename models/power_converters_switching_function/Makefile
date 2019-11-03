@@ -14,6 +14,7 @@ $(EXE): $(MODEL_SRCS) ../utils.c
 
 # Run the refactoring_tool on the code.
 .PHONY: refactor
+refactor:
 	echo 'power_converters_switching_function'
 
 

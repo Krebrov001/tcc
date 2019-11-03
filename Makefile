@@ -99,30 +99,25 @@ StaticAnalysisActionFactory.o : StaticAnalysisActionFactory.cpp StaticAnalysisAc
 restore_models:
 	git checkout -- models/
 
+
 # Verify the modified code generates the correct results
 .PHONY: verify
 verify:
 	@$(MAKE) -s -C models verify
 	@$(MAKE) -s -C models clean
 
+
 # Run static code analysis checks
 .PHONY: tidy
 tidy:
 	clang-tidy $(CHECKS) $(CXX_FILES) --
 
+
 # Run the refactoring_tool program
 .PHONY: refactor
 refactor: $(addprefix $(BINDIR)/,$(EXECUTABLE))
 	@$(MAKE) -s -C models refactor
-#	$(EXECUTABLE) -all --debug models/navsses/complete_system_io.c --
-#	$(EXECUTABLE) -all
-#	$(EXECUTABLE) --all --debug models/navsses/complete_system_io.c --
-#	$(EXECUTABLE) --all --debug models/power_fivecells/main.c models/power_fivecells/power_fivecells.c models/power_fivecells/power_fivecells_data.c -- -I models/ -I models/simulink_include/ -I models/power_fivecells/
-#	$(EXECUTABLE) --all --debug models/power_converters_switching_devices/power_converters_switching_devices.c -- -I models/ -I models/simulink_include/ -I models/power_converters_switching_devices/ -DMODEL=power_converters_switching_devices -DNUMST=2 -DNCSTATES=0 -DHAVESTDIO -DMODEL_HAS_DYNAMICALLY_LOADED_SFCNS=0 -DCLASSIC_INTERFACE=0 -DALLOCATIONFCN=0 -DTID01EQ=0 -DRT -DUSE_RTMODEL -DERT -DTERMFCN=0 -DONESTEPFCN=1 -DMAT_FILE=0 -DMULTI_INSTANCE_CODE=0 -DINTEGER_CODE=0  DMT=1
 
-#.PHONY: run-verbose
-#run-verbose: $(addprefix $(BINDIR)/,$(EXECUTABLE))
-#	$(EXECUTABLE) -debug -all models/navsses/complete_system_io.c --
 
 .PHONY: clean
 clean:

@@ -4162,7 +4162,5 @@ void complete_system_io_terminate(void)
 	free(complete_system_io_DW.STRUCT_TEST_PTR);
 	free(GLOBAL_TEST_PTR);
   }
-  int out, free = 5;
-  out = free + free*2;
-  free = 100;
+
 }

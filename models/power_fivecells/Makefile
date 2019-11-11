@@ -14,7 +14,7 @@ $(EXE): main.c power_fivecells.c power_fivecells_data.c ../utils.c
 .PHONY: refactor
 refactor:
 	echo 'power_fivecells'
-	refactoring_tool --all --debug main.c power_fivecells.c power_fivecells_data.c ../utils.c -- $(CFLAGS) $(LIBS)
+	refactoring_tool --all --debug power_fivecells.c -- -I . -I ../ -I ../simulink_include
 
 
 # Execute the simulation and only print if there's an error

@@ -320,7 +320,7 @@ int main(int argc, const char **argv) {
             num_refactorings += num_calloc_calls;
             num_refactorings += num_variable_replacements;
             outs() << "Found " << num_free_calls << " calls to free()\n";
-	        outs() << "Found " << num_free_calls << " calls to calloc()\n";
+	        outs() << "Found " << num_calloc_calls << " calls to calloc()\n";
             outs() << "Replaced " << num_variable_replacements << " pointers with arrays.\n";
         }
 

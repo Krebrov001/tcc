@@ -65,7 +65,7 @@ class RemoveMemcpyMatchCallback : public BaseMatchCallback
      *
      * If successful, then a functionally equivalent block of code as a replacement is
      * constructed, and the replacement is applied, and if print_debug_output is set to true,
-     * then a diagnostic message is printed. You set it to true by specifying -debug on the
+     * then a diagnostic message is printed. You set it to true by specifying --debug on the
      * command line.
      * If unsuccessful, an error is raised, and that error always gets printed to the stderr
      * together with the expression which caused the error, regardless of whether the debug flag
@@ -97,7 +97,7 @@ class RemoveMemcpyMatchCallback : public BaseMatchCallback
      * @param const Expr* expression - Usually this is an IntegerLiteral or a
      *                    UnaryExprOrTypeTraitExpr AKA sizeof() expression.
      *
-     * @return llvm::APInt - An APInt (Arbitrary integer data type) holding the numberical value of
+     * @return llvm::APInt - An APInt (Arbitrary integer data type) holding the numerical value of
      *         the passed in expression.
      *         If an IntegerLiteral is passed in, the APInt holds the value of that IntegerLiteral.
      *         If a sizeof() expression is passed in, the APInt holds 1U.

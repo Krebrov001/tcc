@@ -13,7 +13,10 @@ using llvm::Error;
 using llvm::raw_ostream;
 
 using clang::Decl;
+using clang::LangOptions;
+using clang::SourceManager;
 using clang::SourceLocation;
+using clang::Lexer;
 using clang::CharSourceRange;
 
 using clang::tooling::Replacement;
@@ -41,6 +44,11 @@ void RemoveAssignmentMatchCallback::run(const MatchFinder::MatchResult& result)
         for (auto SourcePair : SourcePairs) {
             SourceLocation loc_start = SourcePair.first;
             SourceLocation loc_end   = SourcePair.second;
+            loc_start = getLineStart(loc_start);
+            //loc_start = Lexer::GetBeginningOfToken(loc_start, *SM, LangOptions());
+            //CharSourceRange range = SM->getImmediateExpansionRange(loc_start);
+            //loc_start = range.getBegin();
+            //SourceLocation loc_end = range.getEnd();
 
             CharSourceRange range = CharSourceRange::getTokenRange(loc_start, loc_end);
             //string replacement("replace text");
@@ -64,3 +72,19 @@ void RemoveAssignmentMatchCallback::run(const MatchFinder::MatchResult& result)
     }  // if
 
 }  // run()
+
+
+SourceLocation RemoveAssignmentMatchCallback::getLineStart(const SourceLocation& loc_start) const
+{
+    const char* loc = SM->getCharacterData(loc_start);
+
+    int offset = 0;
+    while (*loc != '\n') {
+        --offset;
+        --loc;
+    }
+
+    // + 1 because I do not want to return the location of the '\n', but the location right after
+    // it, the start of the next line.
+    return loc_start.getLocWithOffset(offset + 1);
+}

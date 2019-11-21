@@ -296,6 +296,7 @@ string RemoveMemcpyMatchCallback::getArgString(const Expr* expr, const string& v
 {
     // default constructed to empty string ""
     string arg_string;
+    string idx_string;
     // This variable holds a pointer to the lvalue which is the argument of memcpy(),
     // which could be a variable, an array, or a field of an object.
     const ValueDecl *valdecl = nullptr;
@@ -345,9 +346,23 @@ string RemoveMemcpyMatchCallback::getArgString(const Expr* expr, const string& v
             // getBase() returns the x, IgnoreParenCasts() is necessary to go past the ImplicitCastExpr
             // expr becomes just x, peels away the [0] and any cast and parenthesis expressions
             expr = asubexp->getBase()->IgnoreParenCasts();
+            const Expr* idx = asubexp->getIdx();
+            if (isa<IntegerLiteral>(idx)) {
+                APInt val = getVal(idx);
+                if (val != 0) {
+                    idx_string = val.toString(10, false); // Args are base = 10, signed = false
+                }
+            } else {
+                idx_string = getAsString(idx);
+            }
+            //outputSource(idx, llvm::errs());
         } else {
             throw range_error("ERROR: Unable to further iteratively parse expression.");
         }
+    }
+
+    if (!idx_string.empty()) {
+        idx_string.append(" + ");
     }
 
     // If we failed to point valdecl to a vald ValueDecl for some reason.
@@ -360,11 +375,11 @@ string RemoveMemcpyMatchCallback::getArgString(const Expr* expr, const string& v
     // If the ValueDecl represents a pointer type or an array type,
     // then we add the array subscript operator to it: x[i]
     if ( auto ptrtype = dyn_cast<PointerType>(valdecl->getType().getTypePtr()) ) {
-        arg_string += "[" + var + "]";
+        arg_string += "[" + idx_string + var + "]";
         // If the data type is int*, get the pointee type which is int.
         this_data_type = ptrtype->getPointeeType().getAsString();
     } else if ( auto arraytype = dyn_cast<ConstantArrayType>(valdecl->getType().getTypePtr()) ) {
-        arg_string += "[" + var + "]";
+        arg_string += "[" + idx_string + var + "]";
         // If the data type is int [4], get the element type which is int.
         this_data_type = arraytype->getElementType().getAsString();
     } else {

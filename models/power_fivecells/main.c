@@ -39,7 +39,11 @@ int main(int argc, char *argv[]) {
 	config.step0_p = power_fivecells_step;
 	config.terminate_p = NULL; // None
 	config.get_outputs_p = get_outputs;
+#ifdef HLS_TESTBENCH
+	config.reference_filename = "power_fivecells.dat";
+#else
 	config.reference_filename = "../dat_files/power_fivecells.dat";
+#endif
 
 	return run_sim(&config);
 }

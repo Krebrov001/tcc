@@ -82,7 +82,11 @@ int main(int argc, char *argv[]) {
 	config.step1_p = power_converters_switching_devices_step1;
 	config.terminate_p = NULL; // None
 	config.get_outputs_p = get_outputs;
+#ifdef HLS_TESTBENCH
+	config.reference_filename = "power_converters_switching_devices.dat";
+#else
 	config.reference_filename = "../dat_files/power_converters_switching_devices.dat";
+#endif
 
 	return run_sim(&config);
 }

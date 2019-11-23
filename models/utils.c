@@ -155,6 +155,9 @@ int run_sim(const struct sim_config_T *config) {
 				(*config->step1_p)();
 			}
 			++multistep;
+			if( multistep >= config->step1_multirate ){
+				multistep = 0;
+			}
 		}
 
 		// Get the current outputs

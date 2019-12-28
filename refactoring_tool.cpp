@@ -8,6 +8,7 @@
 #include "MakeStaticMatchCallback.h"
 #include "RemoveHypotMatchCallback.h"
 #include "RemoveMemcpyMatchCallback.h"
+#include "RemoveMemsetMatchCallback.h"
 #include "RemovePointerMatchCallback.h"
 #include "RemoveVariablesMatchCallback.h"
 #include "RemoveAssignmentMatchCallback.h"
@@ -80,6 +81,7 @@ opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
 // Define the list of tool specific command line options.
 #define OPTIONS_LIST  \
     X(RunRemoveMemcpy, "remove-memcpy", "This option turns on replacement of memcpy().")  \
+    X(RunRemoveMemset, "remove-memset", "This option turns on replacement of memset().")  \
     X(RunMakeStatic, "make-static", "This option turns all dynamic memory allocations "   \
                                     "into stack ones, gets rid of calloc() and free().")  \
     X(RunRemovePointer, "remove-pointer", "This option turns on removal of the global pointer.")  \
@@ -136,7 +138,7 @@ int main(int argc, const char **argv) {
         [](raw_ostream& os) {
             const string version_information = "ONR Project STAR Tool\n"
                                                "By Konstantin Rebrov\n"
-                                               "development version Oct 2019\n";
+                                               "development version Dec 2019\n";
             os << version_information;
         }
     );
@@ -275,7 +277,12 @@ int main(int argc, const char **argv) {
 	// The second argument is a list of source files to parse.
 	RefactoringTool tool3(Compilations, SourcePaths);
     // Create a third MatchFinder to run the new RefactoringTool through the source code again,
-    // to apply refactorings in the second round, mainly RemoveVariablesMatchCallback.
+    // to apply refactorings in the second round.
+    // IMPORTANT: RemoveVariablesMatchCallback and RemoveMemsetMatchCallback have to be run in the
+    // third round of refactorings because they depend on other results that were run in the
+    // second round of the refactorings.
+    // RemoveMemsetMatchCallback needs RemovePointerMatchCallback to run first and remove the
+    // global pointers before it runs.
     MatchFinder mf3;
 
     //// Remove variables details
@@ -290,6 +297,12 @@ int main(int argc, const char **argv) {
 
         // Step 2: Get the AST matchers describing them.
         remove_variables_match_callback.getASTmatchers(mf3);
+    }
+
+    //// Remove memset details
+	RemoveMemsetMatchCallback remove_memset_match_callback(&tool3.getReplacements(), SourcePaths[0]);
+    if (RunRemoveMemset) {
+	    remove_memset_match_callback.getASTmatchers(mf3);
     }
 
     // Run the new Refactoring Tool to apply refactorings in the third round.
@@ -310,6 +323,14 @@ int main(int argc, const char **argv) {
             num_refactorings += num_replacements;
 	        outs() << "Found " << num_matches_found << " memcpy() matches\n";
 	        outs() << "Performed " << num_replacements << " memcpy() replacements\n";
+        }
+
+        if (RunRemoveMemset) {
+            unsigned int num_matches_found = remove_memset_match_callback.getNumMatchesFound();
+            unsigned int num_replacements = remove_memset_match_callback.getNumReplacements();
+            num_refactorings += num_replacements;
+	        outs() << "Found " << num_matches_found << " memset() matches\n";
+	        outs() << "Performed " << num_replacements << " memset() replacements\n";
         }
 
         if (RunMakeStatic) {

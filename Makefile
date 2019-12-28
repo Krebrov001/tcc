@@ -44,6 +44,7 @@ EXECUTABLE := refactoring_tool
 CXX_FILES  := refactoring_tool.cpp \
               BaseMatchCallback.cpp \
               RemoveMemcpyMatchCallback.cpp \
+			  RemoveMemsetMatchCallback.cpp \
 			  MakeStaticMatchCallback.cpp \
 			  RemovePointerMatchCallback.cpp \
 			  RemoveHypotMatchCallback.cpp \
@@ -83,6 +84,7 @@ $(EXECUTABLE): $(O_FILES)
 refactoring_tool.o: refactoring_tool.cpp RemoveMemcpyMatchCallback.h MakeStaticMatchCallback.h
 BaseMatchCallback.o: BaseMatchCallback.cpp BaseMatchCallback.h
 RemoveMemcpyMatchCallback.o: RemoveMemcpyMatchCallback.cpp custom_exceptions.h RemoveMemcpyMatchCallback.h BaseMatchCallback.h
+RemoveMemsetMatchCallback.o: RemoveMemsetMatchCallback.cpp custom_exceptions.h RemoveMemsetMatchCallback.h BaseMatchCallback.h
 MakeStaticMatchCallback.o: MakeStaticMatchCallback.cpp MakeStaticMatchCallback.h BaseMatchCallback.h
 RemovePointerMatchCallback.o: RemovePointerMatchCallback.cpp RemovePointerMatchCallback.h BaseMatchCallback.h
 RemoveHypotMatchCallback.o: RemoveHypotMatchCallback.cpp RemoveHypotMatchCallback.h BaseMatchCallback.h

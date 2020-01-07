@@ -40,6 +40,8 @@ class RemoveMemsetMatchCallback : public BaseMatchCallback
      *                                    Replacements objects, which is what we will use to
      *                                    actually perform the source code replacements in the
      *                                    refactoring process.
+     *
+     * @param string filename - The name of the file that is currently being processed.
      */
     explicit RemoveMemsetMatchCallback(map<string, Replacements> * replacements, string filename)
      : BaseMatchCallback(), replacements{replacements}, filename{filename} {}

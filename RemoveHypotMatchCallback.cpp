@@ -48,12 +48,16 @@ void RemoveHypotMatchCallback::run(const MatchFinder::MatchResult& result)
         // Get the first argument, which is named x in the man page,
         // both as an expression and as a string.
         const Expr* x = hypot_call->getArg(0);
-        string string_x = getArgAsString(x, ',');
+        SourceLocation string_x_begin = x->getBeginLoc();
+        SourceLocation string_x_end = getCharOffsetLoc(string_x_begin, ',', true);
+        string string_x = getAsString(string_x_begin, string_x_end);
 
         // Get the second argument, which is named y in the man page,
         // both as an expression and as a string.
         const Expr* y = hypot_call->getArg(1);
-        string string_y = getArgAsString(y, ')');
+        SourceLocation string_y_begin = y->getBeginLoc();
+        SourceLocation string_y_end = getCharOffsetLoc(string_y_begin, ')', true);
+        string string_y = getAsString(string_y_begin, string_y_end);
 
         string replacement = "sqrt( (" + string_x + ") * (" + string_x + ") + (" +
                              string_y + ") * (" + string_y + ") )";
@@ -82,26 +86,4 @@ void RemoveHypotMatchCallback::run(const MatchFinder::MatchResult& result)
         errs() << "ERROR: The expression bound to \"hypot_call\" is not a valid hypot() call.\n";
         errs() << "\n\n";
     }
-}
-
-
-string RemoveHypotMatchCallback::getArgAsString(const Expr* arg, char end) const
-{
-    // Now the SourceLocation loc_start, and it's underlying const char* are both pointing
-    // to the start of the argument.
-    SourceLocation loc_start = arg->getBeginLoc();
-    const char* start = SM->getCharacterData(loc_start);
-    // We need to calculate the length of the argument, the number of characters it has.
-    // An argument ends either with ',' or ')' (if it is the last one).
-    // This loop counts the number of characters from the starting position until the end
-    // of that argument.
-    unsigned int num_chars = 0;
-    while (*start != end) {
-        ++num_chars;
-        ++start;
-    }
-    // No need for a separate another SourceLocation to mark the end,
-    // because the string() constructor takes a char* and number of characters from there on.
-    //SourceLocation loc_end = loc_start.getLocWithOffset(num_chars);
-    return string(SM->getCharacterData(loc_start), num_chars);
 }

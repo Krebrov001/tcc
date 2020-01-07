@@ -356,36 +356,19 @@ void RemovePointerMatchCallback::replace_pointer_dereference(const Expr* baseExp
     // This DeclRefExpr is the pointer variable which is used,
     // complete_system_io_M
     const auto *varexpr = dyn_cast<DeclRefExpr>(baseExp->IgnoreParenImpCasts());
-    // The SourceLocation startLoc, and it's char* representation, start, both point
-    // to the first character in the expression.
+    // The SourceLocation startLoc, points to the first character in the expression.
     // complete_system_io_M->Timing
     // ^
     SourceLocation startLoc = varexpr->getBeginLoc();
-    const char* start = SM->getCharacterData(startLoc);
-
-    /* We need to get the text to replace:
-     * complete_system_io_M->
-     * This loop goes from the starting position and increments the pointer until it
-     * reaches the '-' character which marks the end of the token.
-     * When this loop ends, the pointer start will be pointing to that exact character.
-     * complete_system_io_M->
-     *                     ^
-     *
-     * unsigned int num_chars counts how many characters away the '-' is from the
-     * original startLoc, how many characters in the text to replace.
-     */
-    unsigned int num_chars = 0;
-    while (*start != '-') {
-        ++num_chars;
-        ++start;
-    }
+    // We need to get the text to replace:
+    // complete_system_io_M->
     // endLoc saves as a Sourcelocation, the position where to stop the replacement
     // character range.
     // complete_system_io_M->
     //                      ^
     // The replacement character range now includes the name of the pointer and
     // the -> operator.
-    SourceLocation endLoc = startLoc.getLocWithOffset(num_chars + 1);
+    SourceLocation endLoc = getCharOffsetLoc(startLoc, '>', true);
     CharSourceRange range = CharSourceRange::getTokenRange(startLoc, endLoc);
 
     string replacement;

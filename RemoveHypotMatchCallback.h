@@ -72,22 +72,6 @@ class RemoveHypotMatchCallback : public BaseMatchCallback
 	unsigned int getNumHypotReplacements() const { return num_hypot_replacements; }
 
   private:
-    /**
-     * This method given an argument, and it's ending character, returns the full text of that
-     * function argument as a string. It is used for finding the arguments of hypot() as strings
-     * in order to construct the replacement string.
-     *
-     * @param cosnt Expr* expr - An argument to hypot(), any argument.
-     *
-     * @param char end - This character delimits the end of the argument. It is the ending char
-     *             where that argument stops. char end must be either ',' or ')'.
-     *             ',' must be specified if the argument is not the last one to the function.
-     *             ')' must be specified if the argument is the last one to the function,
-     *             in this case this is the closing ')' of the function call.
-     *             NOTE: This method does not perform error checking if the passed in char end
-     *             parameter really is either ',' or ')'.
-     */
-    string getArgAsString(const Expr* arg, char end) const;
 
     /* Private member variables. */
 

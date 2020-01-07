@@ -79,13 +79,6 @@ class RemoveAssignmentMatchCallback : public BaseMatchCallback
 	inline unsigned int getNumAssignmentRemovals() const { return num_unused_assignments; }
 
   private:
-    /**
-     * @param const SourceLocation& loc_start - The input SourceLocation anywhere in the line.
-     *
-     * @return SourceLocation - For the input SourceLocation, this function returns a SourceLocation
-     *         that "points to" the start of that line, the same line of the input SourceLocation.
-     */
-    SourceLocation getLineStart(const SourceLocation& loc_start) const;
 
     /* Private member variables. */
 

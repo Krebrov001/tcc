@@ -60,9 +60,14 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
      *                     this parameter. It can be llvm::outs(), llvm::errs(), or llvm::nulls().
      *                     The reference is non-const because writing output to an instance of a
      *                     stream class causes that object to be modified.
+     *
+     * @param string extraString = "" - An optional string that may be specified to be printed
+     *               directly after the source code of the astElement. If this parameter would not
+     *               be provided, it would by default evaluate to the empty string and just the
+     *               astElement would be printed, without any extra text at the end.
      */
     template <typename astElement>
-    void outputSource(const astElement* element, raw_ostream& output) const
+    void outputSource(const astElement* element, raw_ostream& output, string extraString = "") const
     {
         // Source:
         // https://stackoverflow.com/a/11154162/5500589
@@ -72,7 +77,7 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
         SourceLocation startLoc = SM->getFileLoc(element->getBeginLoc());
         SourceLocation _endLoc = SM->getFileLoc(element->getEndLoc());
         SourceLocation endLoc = Lexer::getLocForEndOfToken(_endLoc, 0, *SM, lopt);
-        outputSource(startLoc, endLoc, output);
+        outputSource(startLoc, endLoc, output, extraString);
     }
 
     /**
@@ -93,8 +98,13 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
      *                     this parameter. It can be llvm::outs(), llvm::errs(), or llvm::nulls().
      *                     The reference is non-const because writing output to an instance of a
      *                     stream class causes that object to be modified.
+     *
+     * @param string extraString = "" - An optional string that may be specified to be printed
+     *               directly after the source code of delimited by these two SourceLocations.
+     *               If this parameter would not be provided, it would by default evaluate to the
+     *               empty string and just the source code would be printed, without any extra text at the end.
      */
-    virtual void outputSource(const SourceLocation& loc_start, const SourceLocation& loc_end, raw_ostream& output) const;
+    virtual void outputSource(const SourceLocation& loc_start, const SourceLocation& loc_end, raw_ostream& output, string extraString = "") const;
 
     /**
      * Given a pointer to some element in the Clang's AST, this method returns a string
@@ -144,6 +154,23 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
      * @return string - A string representation of the code text between these two SourceLocations.
      */
     virtual string getAsString(const SourceLocation& loc_start, const SourceLocation& loc_end) const;
+
+    /**
+     * This method, being given a starting SourceLocation and a char, searches either forwards or
+     * backwards from the starting SourceLocation for that char, and returns the SourceLocation of
+     * the first occurence, as an offset from the starting SourceLocation.
+     *
+     * @param const SourceLocation* loc_start - The starting location from which to start searching.
+     *
+     * @param char character - The first occurence of this character is searched for.
+     *
+     * @param bool forwards - If true, the method searches for the char forwards from the loc_start.
+     *                      If false, the method searches for the char backwards from the loc_start.
+     *
+     * @return SourceLocation - For the input SourceLocation, this function returns a SourceLocation
+     *         that "points to" the first location of the found character.
+     */
+    SourceLocation getCharOffsetLoc(const SourceLocation& loc_start, char character, bool forwards) const;
 
     /* Protected member variables. */
 

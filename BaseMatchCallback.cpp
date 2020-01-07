@@ -21,9 +21,10 @@ void BaseMatchCallback::run(const MatchFinder::MatchResult& result)
 }
 
 
-void BaseMatchCallback::outputSource(const SourceLocation& loc_start, const SourceLocation& loc_end, raw_ostream& output) const
+void BaseMatchCallback::outputSource(const SourceLocation& loc_start, const SourceLocation& loc_end,
+                                     raw_ostream& output, string extraString) const
 {
-    output << getAsString(loc_start, loc_end) << '\n';
+    output << getAsString(loc_start, loc_end) << extraString << '\n';
     output << "in ";
     loc_start.print(output, *SM);
     output << '\n';
@@ -34,4 +35,25 @@ string BaseMatchCallback::getAsString(const SourceLocation& loc_start, const Sou
 {
     auto num_characters = SM->getCharacterData(loc_end) - SM->getCharacterData(loc_start);
     return string(SM->getCharacterData(loc_start), num_characters);
+}
+
+
+SourceLocation BaseMatchCallback::getCharOffsetLoc(const SourceLocation& loc_start, char character, bool forwards) const
+{
+    const char* loc = SM->getCharacterData(loc_start);
+
+    int offset = 0;
+    if (forwards) {
+        while (*loc != character) {
+            ++offset;
+            ++loc;
+        }
+    } else {
+        while (*loc != character) {
+            --offset;
+            --loc;
+        }
+    }
+
+    return loc_start.getLocWithOffset(offset);
 }

@@ -53,7 +53,8 @@ CXX_FILES  := refactoring_tool.cpp \
 			  RemoveAssignmentMatchCallback.cpp \
 			  StaticAnalysisDiagnosticConsumer.cpp \
 			  StaticAnalysisAction.cpp \
-			  StaticAnalysisActionFactory.cpp
+			  StaticAnalysisActionFactory.cpp \
+			  RemoveInitializeMatchCallback.cpp
 
 O_FILES    := $(CXX_FILES:cpp=o)
 
@@ -94,6 +95,7 @@ RemoveAssignmentMatchCallback.o: RemoveAssignmentMatchCallback.cpp RemoveAssignm
 StaticAnalysisDiagnosticConsumer.o : StaticAnalysisDiagnosticConsumer.cpp StaticAnalysisDiagnosticConsumer.h
 StaticAnalysisAction.o : StaticAnalysisAction.cpp StaticAnalysisAction.h StaticAnalysisDiagnosticConsumer.h
 StaticAnalysisActionFactory.o : StaticAnalysisActionFactory.cpp StaticAnalysisActionFactory.h
+RemoveInitializeMatchCallback.o : RemoveInitializeMatchCallback.cpp RemoveInitializeMatchCallback.h BaseMatchCallback.h
 
 
 # Restore model program to original state

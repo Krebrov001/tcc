@@ -13,6 +13,7 @@
 #include "RemoveVariablesMatchCallback.h"
 #include "RemoveAssignmentMatchCallback.h"
 #include "StaticAnalysisActionFactory.h"
+#include "RemoveInitializeMatchCallback.h"
 
 // Header files for Clang and LLVM libraries.
 #include "clang/ASTMatchers/ASTMatchFinder.h"
@@ -69,6 +70,7 @@ using clang::ast_matchers::MatchFinder;
 
 // Apply a custom category to all command-line options so that they are the
 // only ones displayed.
+// The category tells the CommonOptionsParser how to parse the argc and argv.
 OptionCategory StarToolCategory("refactoring_tool options");
 
 // <bool> Says that this option takes no argument, and is to be treated as a bool value only.
@@ -87,7 +89,8 @@ opt<bool> DebugOutput("debug", desc("This option enables diagnostic output."));
     X(RunRemovePointer, "remove-pointer", "This option turns on removal of the global pointer.")  \
     X(RunRemoveHypot, "remove-hypot", "This option turns on replacement of hypot().")     \
     X(RunRemoveVariables, "remove-variables", "This option removes unreferenced variables.")  \
-    X(RunRemoveAssignment, "remove-assignment", "This option removes unreferenced assignments.")
+    X(RunRemoveAssignment, "remove-assignment", "This option removes unreferenced assignments.") \
+    X(RunRemoveInitialize, "remove-initialize", "This option removes the initialize function.")
 
 // Options to turn on various refactorings are optional.
 opt<bool> RunAll("all", desc("This options turns on all supported refactorings."));
@@ -202,7 +205,7 @@ int main(int argc, const char **argv) {
 
         /* Setup and run the first round of refactorings. */
         // The first round is only for applying the refactorings that are dependent on the
-        // Static Analysis. AST-based refactorings should be put in the second round of
+        // Static Analysis. AST-based refactorings should be put in the second and later rounds of
         // refactorings.
 
         // This first MatchFinder is responsible for applying refactorings in the first round.
@@ -230,8 +233,18 @@ int main(int argc, const char **argv) {
     // to apply refactorings in the second round.
     MatchFinder mf2;
 
+    //// Remove initialize details
+    // It's constructor also takes the name of the current file being processed as an argument.
+    // Remove initialize matchers should be added first, because they completely remove the
+    // initialize function, and other Match Callbacks also apply refactorings in the initialize
+    // function, so by removing that function first, we can save those other Match Callbacks some
+    // work, making our code more efficient.
+    RemoveInitializeMatchCallback remove_initialize_match_callback(&tool2.getReplacements(), SourcePaths[0]);
+    if (RunRemoveInitialize) {
+        remove_initialize_match_callback.getASTmatchers(mf2);
+    }
+
     //// Remove memcpy details
-	// Make the RemoveMemcpyMatchCallback class be able to recieve the match results.
 	RemoveMemcpyMatchCallback remove_memcpy_match_callback(&tool2.getReplacements());
     if (RunRemoveMemcpy) {
 	    remove_memcpy_match_callback.getASTmatchers(mf2);
@@ -373,6 +386,15 @@ int main(int argc, const char **argv) {
             unsigned int num_unused_assignments = analysis_match_callback.getNumAssignmentRemovals();
             num_refactorings += num_unused_assignments;
             outs() << "Removed " << num_unused_assignments << " unused assignments.\n";
+        }
+
+        if (RunRemoveInitialize) {
+            unsigned int num_prototype_removals = remove_initialize_match_callback.getNumPrototypeRemovals();
+            unsigned int num_definition_removals = remove_initialize_match_callback.getNumDefinitionRemovals();
+            num_refactorings += num_prototype_removals;
+            num_refactorings += num_definition_removals;
+            outs() << "Removed " << num_prototype_removals << " prototypes of initialize functions.\n";
+            outs() << "Removed " << num_definition_removals << " definitions of initialize functions.\n";
         }
 
         outs() << '\n' << "Performed " << num_refactorings << " total refactorings\n";

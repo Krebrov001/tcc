@@ -38,7 +38,11 @@ int main(int argc, char *argv[]) {
 	config.step0_p = complete_system_io_step;
 	config.terminate_p = complete_system_io_terminate;
 	config.get_outputs_p = get_outputs;
+#ifdef HLS_TESTBENCH
+	config.reference_filename = "navsses_model.dat";
+#else
 	config.reference_filename = "../dat_files/navsses_model.dat";
+#endif
 
 	return run_sim(&config);
 }

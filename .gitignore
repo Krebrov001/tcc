@@ -1,0 +1,13 @@
+hls/*/.apc
+hls/*/.vivado_hls_log_all.xml
+hls/*.log
+hls/*/*/.autopilot
+hls/*/*/csim
+hls/*/*/*.log
+hls/*/*/*.directive
+hls/*/*/*.funcunit
+hls/*/*/directives.tcl
+hls/*/*/script.tcl
+hls/*/.project
+hls/*/.cproject
+hls/*/.settings

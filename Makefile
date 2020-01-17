@@ -54,7 +54,9 @@ CXX_FILES  := refactoring_tool.cpp \
 			  StaticAnalysisDiagnosticConsumer.cpp \
 			  StaticAnalysisAction.cpp \
 			  StaticAnalysisActionFactory.cpp \
-			  RemoveInitializeMatchCallback.cpp
+			  RemoveInitializeMatchCallback.cpp \
+			  CreateMinorStepFunction.cpp \
+			  SeparateStepFunctions.cpp
 
 O_FILES    := $(CXX_FILES:cpp=o)
 
@@ -96,6 +98,8 @@ StaticAnalysisDiagnosticConsumer.o : StaticAnalysisDiagnosticConsumer.cpp Static
 StaticAnalysisAction.o : StaticAnalysisAction.cpp StaticAnalysisAction.h StaticAnalysisDiagnosticConsumer.h
 StaticAnalysisActionFactory.o : StaticAnalysisActionFactory.cpp StaticAnalysisActionFactory.h
 RemoveInitializeMatchCallback.o : RemoveInitializeMatchCallback.cpp RemoveInitializeMatchCallback.h BaseMatchCallback.h
+CreateMinorStepFunction.o : CreateMinorStepFunction.cpp CreateMinorStepFunction.h BaseMatchCallback.h
+SeparateStepFunctions.o : SeparateStepFunctions.cpp SeparateStepFunctions.h BaseMatchCallback.h
 
 
 # Restore model program to original state

@@ -9,13 +9,13 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <utility>  // for std::pair
 
 using std::string;
 using std::vector;
 using std::set;
+using std::pair;
 using std::size_t;
-
-using llvm::raw_ostream;
 
 using clang::SourceManager;
 using clang::SourceLocation;
@@ -23,6 +23,9 @@ using clang::ast_matchers::MatchFinder;
 
 using clang::Decl;
 using clang::Expr;
+
+
+typedef std::pair<std::string, std::string> key_type;
 
 class FindVariablesMatchCallback : public BaseMatchCallback
 {
@@ -65,22 +68,24 @@ class FindVariablesMatchCallback : public BaseMatchCallback
      * and then unused in the program (using variable_declarations and variable_uses), and it will
      * save these variables into the vector.
      *
-     * @param vector<string>& variables - A reference to the vector of all unused variables.
-     *                        Specifically this parameter must be a reference to the private vector
-     *                        RemoveVariablesMatchCallback.variables
+     * @param vector<key_type>& variables - A reference to the vector of all unused variables.
+     *                          Specifically this parameter must be a reference to the private vector
+     *                          RemoveVariablesMatchCallback.variables
      *        The parameter should be what is returned by RemoveVariablesMatchCallback.getVector()
      *   find_variables_match_callback.collectResults(remove_variables_match_callback.getVector());
      */
-    void collectResults(vector<string>& variables);
+    void collectResults(vector<key_type>& variables);
 
   private:
 
     /* Private member variables. */
 
-    // Stores as strings, names of all variables that are declared in the source code.
-    set<string> variable_declarations;
-    // Stores as strings, names of all variables that are used in the source code.
-    set<string> variable_uses;
+    // This map stores as keys, a pair representing the name of the variable, and the function inside
+    // of which it is declared, of all variable declarations.
+    set<key_type> variable_declarations;
+    // This map stores as keys, a pair representing the name of the variable, and the function inside
+    // of which it is declared, of all variables that are actually used.
+    set<key_type> variable_uses;
     // Add other variables here as needed.
 };
 

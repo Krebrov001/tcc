@@ -9,7 +9,6 @@ using std::string;
 
 using llvm::outs;
 using llvm::errs;
-using llvm::raw_ostream;
 using llvm::Error;
 
 using clang::tooling::Replacement;
@@ -17,7 +16,10 @@ using clang::ast_matchers::MatchFinder;
 using clang::ast_matchers::DeclarationMatcher;
 
 using clang::ast_matchers::varDecl;
+using clang::ast_matchers::functionDecl;
 using clang::ast_matchers::hasName;
+using clang::ast_matchers::hasAncestor;
+using clang::ast_matchers::isDefinition;
 using clang::ast_matchers::isExpansionInMainFile;
 
 using clang::LangOptions;
@@ -38,20 +40,40 @@ void RemoveVariablesMatchCallback::getASTmatchers(MatchFinder& mf)
     // created. Automatic variables in loops are distinct objects in each iteration of the loop.
     // However static variables/objects defined inside loops persist, there is only one variable.
     for (; it != endp; ++it) {
-        DeclarationMatcher variable_declaration_matcher = varDecl(
-            hasName(*it),  // *it gets the name of the variable as a string.
-            isExpansionInMainFile()
-        ).bind("variable_declaration");
-        // isExpansionInMainFile() is needed to grab only the variables that are declared in the
-        // main file that we're processing (the *.c file). This ignores variables in header files,
-        // such as those in the standard library.
+        if ((*it).first != "") {
+            DeclarationMatcher variable_declaration_matcher = varDecl(
+                hasName((*it).first),  // *it.first gets the name of the variable as a string.
+                isExpansionInMainFile(),
+                hasAncestor(functionDecl(
+                    isDefinition(),
+                    hasName((*it).second)
+                ))
+            ).bind("variable_declaration");
+            // isExpansionInMainFile() is needed to grab only the variables that are declared in the
+            // main file that we're processing (the *.c file). This ignores variables in header files,
+            // such as those in the standard library.
 
-        // &remove_variables_match_callback, is the address of the calling object == this
-        // The variable_declaration_matcher which is added to the MatchFinder here is the local
-        // one inside the body of the loop. Each loop iteration, a distinct one is created and it
-        // is added to the MatchFinder.
-        mf.addMatcher(variable_declaration_matcher, this);
+            // The variable_declaration_matcher which is added to the MatchFinder here is the local
+            // one inside the body of the loop. Each loop iteration, a distinct one is created and it
+            // is added to the MatchFinder.
+            mf.addMatcher(variable_declaration_matcher, this);
+        } else {  // (*it).first == ""
+            // If the name of the variable is the empty string, then we have reached the end of the
+            // variables in the vector. The vector holding the unused variables is allocated the
+            // same size as the number of total variable declarations, however actual size may be
+            // less and not all allocated elements may be used up. In that case, the first elements
+            // in the vector always contain information about the unused variables, and the last
+            // elements are always empty strings.
+            // So if you see an empty string, there maybe others after it, so stop looping in the
+            // vector and break the loop.
+            break;
+        }
     }
+
+    // Free the allocated memory of the vector.
+    // Removes all elements from the vector (which are destroyed), leaving the container with a size of 0.
+    // clear(), resize(0), and erase(begin(), end()) are all equivalent
+    variables.clear();
 }
 
 

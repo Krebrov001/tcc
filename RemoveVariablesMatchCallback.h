@@ -14,8 +14,6 @@ using std::map;
 using std::string;
 using std::vector;
 
-using llvm::raw_ostream;
-
 using clang::SourceManager;
 using clang::SourceLocation;
 using clang::tooling::Replacements;
@@ -23,6 +21,10 @@ using clang::ast_matchers::MatchFinder;
 
 using clang::Decl;
 using clang::VarDecl;
+
+
+// Type declarations for this module.
+typedef std::pair<std::string, std::string> key_type;
 
 
 class RemoveVariablesMatchCallback : public BaseMatchCallback
@@ -67,7 +69,7 @@ class RemoveVariablesMatchCallback : public BaseMatchCallback
     void run(const MatchFinder::MatchResult& result) override;
 
     /**
-     * This method returns a reference to the private data member vector<string> variables.
+     * This method returns a reference to the private data member vector<key_type> variables.
      * This reference to the vector must then be passed into
      * FindVariablesMatchCallback::collectResults(), which fills this vector with the names of
      * variables that are declared but never used.
@@ -76,7 +78,7 @@ class RemoveVariablesMatchCallback : public BaseMatchCallback
      *
      * Functions defined inside the class { }; are automatically inlined by default.
      */
-    vector<string>& getVector() { return variables; }
+    vector<key_type>& getVector() { return variables; }
 
     /**
 	 * Returns the number of successful removals of unused variables.
@@ -88,7 +90,10 @@ class RemoveVariablesMatchCallback : public BaseMatchCallback
 
     map<string, Replacements>* replacements;
 
-    vector<string> variables;
+    // key_type is just a pair of two strings. The first string is the name of the variable itself.
+    // The second string is the name of the function inside of which that variable was declared,
+    // or it is empty string if that variable is global.
+    vector<key_type> variables;
     unsigned int num_unused_variables{0};
     // Add other variables here as needed.
 };

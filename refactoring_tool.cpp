@@ -190,8 +190,6 @@ int main(int argc, const char **argv) {
     // refactored by later modules.
 
     // Create a first RefactoringTool to run the first round of refactorings.
-    // The first argument is a list of compilations.
-	// The second argument is a list of source files to parse.
 	RefactoringTool tool1(Compilations, SourcePaths);
 
     // This first MatchFinder is responsible for applying refactorings in the first round.
@@ -217,8 +215,7 @@ int main(int argc, const char **argv) {
     // Static Analysis. AST-based refactorings should be put in the third and later rounds of
     // refactorings.
 
-    // The first argument is a list of compilations.
-    // The second argument is a list of source files to parse.
+    // Create a second RefactoringTool to run the second round of refactorings.
     RefactoringTool tool2(Compilations, SourcePaths);
 
     //// Remove Assignment details
@@ -261,11 +258,15 @@ int main(int argc, const char **argv) {
     //=================================================//
 
     /* Setup and run the third round of refactorings. */
+    // The third round is for refactorings which remove significant large blocks of code, which
+    // might have problematic code constructs that the future refactorings need to remove.
+    // So run these refactorings first, and save the changes back out to the file, and only then
+    // after that run the other refactorings in a different round so that these removed blocks of
+    // code do not show up in matching the AST.
 
     // Create a third RefactoringTool to run the third round of refactorings.
-    // The first argument is a list of compilations.
-	// The second argument is a list of source files to parse.
 	RefactoringTool tool3(Compilations, SourcePaths);
+
     // Create a third MatchFinder to run the new RefactoringTool through the source code again,
     // to apply refactorings in the third round.
     MatchFinder mf3;
@@ -291,38 +292,6 @@ int main(int argc, const char **argv) {
         separate_step_functions.getASTmatchers(mf3);
     }
 
-    //// Remove memcpy details
-	RemoveMemcpyMatchCallback remove_memcpy_match_callback(&tool3.getReplacements());
-    if (RunRemoveMemcpy) {
-	    remove_memcpy_match_callback.getASTmatchers(mf3);
-    }
-
-	//// Make static details
-	MakeStaticMatchCallback make_static_match_callback(&tool3.getReplacements());
-    if (RunMakeStatic) {
-	    make_static_match_callback.getASTmatchers(mf3);
-    }
-
-    //// Remove pointer details
-    RemovePointerMatchCallback remove_pointer_match_callback(&tool3.getReplacements());
-    if (RunRemovePointer) {
-        remove_pointer_match_callback.getASTmatchers(mf3);
-    }
-
-    //// Remove hypot details
-    RemoveHypotMatchCallback remove_hypot_match_callback(&tool3.getReplacements());
-    if (RunRemoveHypot) {
-        remove_hypot_match_callback.getASTmatchers(mf3);
-    }
-
-    //// Remove memset details
-    // RemoveMemsetMatchCallback needs RemovePointerMatchCallback to run first and remove the
-    // global pointers before it runs.
-	RemoveMemsetMatchCallback remove_memset_match_callback(&tool3.getReplacements(), SourcePaths[0]);
-    if (RunRemoveMemset) {
-	    remove_memset_match_callback.getASTmatchers(mf3);
-    }
-
     // Run the RefactoringTool to perform the third round of refactorings.
     auto result3 = tool3.runAndSave(newFrontendActionFactory(&mf3).get());
     if (result3 != 0) {
@@ -333,44 +302,94 @@ int main(int argc, const char **argv) {
     //=================================================//
 
     /* Setup and run the fourth round of refactorings. */
+    // The fourth round is for simple refactorings that modify only the line on which they reside.
+    // These are localized refactorings which do not need to take into account the source code file
+    // as a whole.
 
     // Create a fourth RefactoringTool to run the fourth round of refactorings.
-    // The fourth round of the refactorings finds variables that were left
-    // unreferenced after the refactorings in the previous rounds have been applied.
-    // The first argument is a list of compilations.
-	// The second argument is a list of source files to parse.
 	RefactoringTool tool4(Compilations, SourcePaths);
-
+    // Create a fourth MatchFinder to run the new RefactoringTool through the source code again,
+    // to apply refactorings in the fourth round.
     MatchFinder mf4;
+
+    //// Remove memcpy details
+	RemoveMemcpyMatchCallback remove_memcpy_match_callback(&tool4.getReplacements());
+    if (RunRemoveMemcpy) {
+	    remove_memcpy_match_callback.getASTmatchers(mf4);
+    }
+
+	//// Make static details
+	MakeStaticMatchCallback make_static_match_callback(&tool4.getReplacements());
+    if (RunMakeStatic) {
+	    make_static_match_callback.getASTmatchers(mf4);
+    }
+
+    //// Remove pointer details
+    RemovePointerMatchCallback remove_pointer_match_callback(&tool4.getReplacements());
+    if (RunRemovePointer) {
+        remove_pointer_match_callback.getASTmatchers(mf4);
+    }
+
+    //// Remove hypot details
+    RemoveHypotMatchCallback remove_hypot_match_callback(&tool4.getReplacements());
+    if (RunRemoveHypot) {
+        remove_hypot_match_callback.getASTmatchers(mf4);
+    }
+
+    //// Remove memset details
+    // RemoveMemsetMatchCallback needs RemovePointerMatchCallback to run first and remove the
+    // global pointers before it runs.
+	RemoveMemsetMatchCallback remove_memset_match_callback(&tool4.getReplacements(), SourcePaths[0]);
+    if (RunRemoveMemset) {
+	    remove_memset_match_callback.getASTmatchers(mf4);
+    }
+
+    // Run the RefactoringTool to perform the fourth round of refactorings.
+    auto result4 = tool4.runAndSave(newFrontendActionFactory(&mf4).get());
+    if (result4 != 0) {
+        errs() << "Error in the fourth round of refactorings: " << result4 << "\n";
+        return result4;
+    }
+
+    //=================================================//
+
+    /* Setup and run the fifth round of refactorings. */
+    // The fifth round of the refactorings finds variables that were left
+    // unreferenced after the refactorings in the previous rounds have been applied.
+
+    // Create a fifth RefactoringTool to run the fifth round of refactorings.
+	RefactoringTool tool5(Compilations, SourcePaths);
+
+    MatchFinder mf5;
 
     //// Remove variables details
     // NOTE: default constuctor takes no arguments.
     // FindVariablesMatchCallback does not do any replacements, it only counts the variables.
     FindVariablesMatchCallback find_variables_match_callback;
     if (RunRemoveVariables) {
-        find_variables_match_callback.getASTmatchers(mf4);
+        find_variables_match_callback.getASTmatchers(mf5);
     }
 
-    // Run the new Refactoring Tool to apply refactorings in the fourth round.
-	auto result4 = tool4.runAndSave(newFrontendActionFactory(&mf4).get());
-	if (result4 != 0) {
-	    errs() << "Error in the fourth round of refactorings: " << result4 << "\n";
-	    return result4;
+    // Run the new Refactoring Tool to apply refactorings in the fifth round.
+	auto result5 = tool5.runAndSave(newFrontendActionFactory(&mf5).get());
+	if (result5 != 0) {
+	    errs() << "Error in the fifth round of refactorings: " << result5 << "\n";
+	    return result5;
     }
 
     //=================================================//
 
-    /* Setup and run the fifth round of refactorings. */
+    /* Setup and run the sixth round of refactorings. */
+    // The sixth round of the refactorings removes unreferenced variables that were identified in
+    // the fifth round of the refactorings.
 
-    // Create a fifth RefactoringTool to run the fifth round of refactorings.
-    // The fifth round of the refactorings removes unreferenced variables that were identified in
-    // the fourth round of the refactorings.
-    RefactoringTool tool5(Compilations, SourcePaths);
-    MatchFinder mf5;
+    // Create a sixth RefactoringTool to run the sixth round of refactorings.
+    RefactoringTool tool6(Compilations, SourcePaths);
+    MatchFinder mf6;
 
     //// Remove variables details
     // This one actually removes the variables.
-    RemoveVariablesMatchCallback remove_variables_match_callback(&tool5.getReplacements());
+    RemoveVariablesMatchCallback remove_variables_match_callback(&tool6.getReplacements());
     if (RunRemoveVariables) {
         /* These Step 1 and Step 2 MUST be called in this order ALWAYS! */
 
@@ -379,14 +398,14 @@ int main(int argc, const char **argv) {
         find_variables_match_callback.collectResults(remove_variables_match_callback.getVector());
 
         // Step 2: Get the AST matchers describing them.
-        remove_variables_match_callback.getASTmatchers(mf5);
+        remove_variables_match_callback.getASTmatchers(mf6);
     }
 
-    // Run the new Refactoring Tool to apply refactorings in the fifth round.
-	auto result5 = tool5.runAndSave(newFrontendActionFactory(&mf5).get());
-	if (result5 != 0) {
-	    errs() << "Error in the fifth round of refactorings: " << result5 << "\n";
-	    return result5;
+    // Run the new Refactoring Tool to apply refactorings in the sixth round.
+	auto result6 = tool6.runAndSave(newFrontendActionFactory(&mf6).get());
+	if (result6 != 0) {
+	    errs() << "Error in the sixth round of refactorings: " << result6 << "\n";
+	    return result6;
     }
 
     //=================================================//

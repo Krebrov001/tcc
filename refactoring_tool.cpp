@@ -426,9 +426,12 @@ int main(int argc, const char **argv) {
         if (RunRemoveMemset) {
             unsigned int num_matches_found = remove_memset_match_callback.getNumMatchesFound();
             unsigned int num_replacements = remove_memset_match_callback.getNumReplacements();
+            unsigned int num_removals = remove_memset_match_callback.getNumRemovals();
             num_refactorings += num_replacements;
+            num_refactorings += num_removals;
 	        outs() << "Found " << num_matches_found << " memset() matches\n";
 	        outs() << "Performed " << num_replacements << " memset() replacements\n";
+            outs() << "Removed " << num_removals << " calls to memset()\n";
         }
 
         if (RunMakeStatic) {

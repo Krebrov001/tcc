@@ -16,6 +16,7 @@ using std::string;
 using llvm::APInt;
 
 using clang::Expr;
+using clang::CallExpr;
 using clang::SourceManager;
 using clang::SourceLocation;
 
@@ -60,17 +61,10 @@ class RemoveMemsetMatchCallback : public BaseMatchCallback
     /**
      * Callback method for the MatchFinder, this function gets called whenever a matching
      * expression is found. This is either a CallExpr or a CStyleCastExpr.
-     * Either way, the call to memset() is extracted from this expression, it is analyzed,
-     * and the program tries to evaluate the arguments to the memset() function call.
-     *
-     * If successful, then a functionally equivalent block of code as a replacement is
-     * constructed, and the replacement is applied, and if print_debug_output is set to true,
-     * then a diagnostic message is printed. You set it to true by specifying --debug on the
-     * command line.
-     * If unsuccessful, an error is raised, and that error always gets printed to the stderr
-     * together with the expression which caused the error, regardless of whether the debug flag
-     * is set or not.
-     * This function catches all exceptions that the functions that it calls throw.
+     * Either way, the call to memset() is extracted from this expression.
+     * This method calls either replace_memset_call() or remove_memset_call()
+     * depending on whether this matched function call should be replaced with an equivalent
+     * expression or removed entirely.
      *
 	 * @param const MatchFinder::MatchResult result - Found matching results.
 	 */
@@ -82,12 +76,46 @@ class RemoveMemsetMatchCallback : public BaseMatchCallback
 	unsigned int getNumReplacements() const { return num_replacements; }
 
     /**
+     * Returns the number of successful memset() removals.
+     */
+    unsigned int getNumRemovals() const { return num_removals; }
+
+    /**
 	 * Returns the number of matches found, the number of times run() function got called.
 	 */
 	unsigned int getNumMatchesFound() const { return num_matches_found; }
 
   private:
     /* Private helper functions. */
+
+    /**
+     * This function recieves a call to memset() as an input parameter, which is analyzed,
+     * and the program tries to evaluate the arguments to the memset() function call.
+     *
+     * If successful, then a functionally equivalent block of code as a replacement is
+     * constructed, and the replacement is applied, and if print_debug_output is set to true,
+     * then a diagnostic message is printed. You set it to true by specifying --debug on the
+     * command line.
+     * If unsuccessful, an error is raised, and that error always gets printed to the stderr
+     * together with the expression which caused the error, regardless of whether the debug flag
+     * is set or not.
+     * This function catches all exceptions that the functions that it calls throw.
+     *
+     * @param const CallExpr* call_expr - The call to the memset() function.
+     *
+     * @param SourceLocation loc_start - The start of the line from where to perform the replacement.
+     */
+    void replace_memset_call(const CallExpr* call_expr, SourceLocation loc_start);
+
+    /**
+     * This function recieves a call to memset() as an input parameter, which is simply deleted from
+     * the source code.
+     *
+     * @param const CallExpr* call_expr - The call to the memset() function.
+     *
+     * @param SourceLocation loc_start - The start of the line from where to perform the removal.
+     */
+    void remove_memset_call(const CallExpr* call_expr, SourceLocation loc_start);
 
     /**
      * This function takes an expression holding a numberical value, and returns an APInt
@@ -209,6 +237,8 @@ class RemoveMemsetMatchCallback : public BaseMatchCallback
     string type_string;
     // The number of successful memset() replacements.
     unsigned int num_replacements{0};
+    // The number of successful memset() removals.
+    unsigned int num_removals{0};
     // The number of matches found, the number of times run() function got called.
     unsigned int num_matches_found{0};
     // Add other variables here as needed.

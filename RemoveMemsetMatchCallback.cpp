@@ -69,6 +69,7 @@ void RemoveMemsetMatchCallback::getASTmatchers(MatchFinder& mf)
 
     // match all instances of:
     // (void) memset(/* ... */);
+    // not in the initialize function
     StatementMatcher cast_memset_matcher = cStyleCastExpr(hasSourceExpression(
         callExpr(
             callee(functionDecl(hasName("memset"))),
@@ -78,20 +79,44 @@ void RemoveMemsetMatchCallback::getASTmatchers(MatchFinder& mf)
 
     // match all instances of:
     // memset(/* ... */);
+    // not in the initialize function
     StatementMatcher memset_matcher = callExpr(
         callee(functionDecl(hasName("memset"))),
         unless(hasAncestor(cStyleCastExpr())),
         unless(hasAncestor(functionDecl(hasName(initialize_function_name))))
     ).bind("memset_call");
 
+    // match all instances of:
+    // (void) memset(/* ... */);
+    // in the initialize function
+    StatementMatcher initialize_cast_memset_matcher = cStyleCastExpr(hasSourceExpression(
+        callExpr(
+            callee(functionDecl(hasName("memset"))),
+            hasAncestor(functionDecl(hasName(initialize_function_name)))
+        )
+    )).bind("initialize_cast_memset_call");
+
+    // match all instances of:
+    // memset(/* ... */);
+    // in the initialize function
+    StatementMatcher initialize_memset_matcher = callExpr(
+        callee(functionDecl(hasName("memset"))),
+        unless(hasAncestor(cStyleCastExpr())),
+        hasAncestor(functionDecl(hasName(initialize_function_name)))
+    ).bind("initialize_memset_call");
+
     // &remove_memset_match_callback, is the address of the calling object == this
     mf.addMatcher(memset_matcher, this);
     mf.addMatcher(cast_memset_matcher, this);
+    mf.addMatcher(initialize_cast_memset_matcher, this);
+    mf.addMatcher(initialize_memset_matcher, this);
 }
 
 
 void RemoveMemsetMatchCallback::run(const MatchFinder::MatchResult& result)
 {
+    SM = result.SourceManager;
+
     // run() method is called whenever a new match is found.
     // Each run() corresponds to a new match, and the data in between the matches should
     // not be stored, therefore the type_string should be cleared before staring to run each mach.
@@ -101,176 +126,207 @@ void RemoveMemsetMatchCallback::run(const MatchFinder::MatchResult& result)
     type_string = "";
 
     ++num_matches_found;
+
     // The value of the pointer itself can be modified,
     // but the underlying object which it points to is const.
     const CallExpr* call_expr = nullptr;
-    // Since this SourceLocation is used multiple times in below code, bring it up.
-    SourceLocation loc_start;
 
-    SM = result.SourceManager;
-
-    // Remove the C-style cast operator before some memset calls.
-    // (void) memset(s, c, n) a common pattern.
-    // First check that the result is a CStyleCastExpr, if so, then get the CallExpr out of it.
-    // Else, then the result is CallExpr.
-    const auto *cast_expr = result.Nodes.getNodeAs<CStyleCastExpr>("cast_memset_call");
-    if (cast_expr != nullptr) {
+    if ((call_expr = result.Nodes.getNodeAs<CallExpr>("memset_call"))) {
+        replace_memset_call(call_expr, call_expr->getBeginLoc());
+    } else if (const auto* cast_expr = result.Nodes.getNodeAs<CStyleCastExpr>("cast_memset_call")) {
         // clang::CastExpr::getSubExpr() returns an Expr*
         // dynamic_cast it into a const CallExpr*
         // The sub expression of a cast expression is the expression that you're trying to cast.
         call_expr = dyn_cast<const CallExpr>(cast_expr->getSubExpr());
-        loc_start = cast_expr->getBeginLoc();
+        replace_memset_call(call_expr, cast_expr->getBeginLoc());
+    } else if ((call_expr = result.Nodes.getNodeAs<CallExpr>("initialize_memset_call"))) {
+        remove_memset_call(call_expr, call_expr->getBeginLoc());
+    } else if (const auto* cast_expr = result.Nodes.getNodeAs<CStyleCastExpr>("initialize_cast_memset_call")) {
+        // clang::CastExpr::getSubExpr() returns an Expr*
+        // dynamic_cast it into a const CallExpr*
+        // The sub expression of a cast expression is the expression that you're trying to cast.
+        call_expr = dyn_cast<const CallExpr>(cast_expr->getSubExpr());
+        remove_memset_call(call_expr, cast_expr->getBeginLoc());
+    }
+}
+
+
+void RemoveMemsetMatchCallback::replace_memset_call(const CallExpr* call_expr, SourceLocation loc_start)
+{
+    // strings are default constructed to ""
+    // They are repreenting the three arguments to memset().
+    // void *memset(void *s, int c, size_t n);
+    string s;
+    string c;
+    string size;
+
+    // NOTE: Do not rearrange the order of these three chunks of code!
+    // This is important, the arguments of memset() are processed from left to right.
+    // First,  argument 0 (void *s) is processed by getArgString().
+    // Second, argument 1 (int c) is processed by getFillString().
+    // Third,  argument 2 (size_t n) is processed by getSizeString().
+    // This is necessary in order to properly determine the element type.
+    // The class data member string type_string is set to the type of the element, and is
+    // subsequently used for error checking.
+    // Initiallly it gets constructed to the empty string.
+    // Then when getArgString() is called for the first time and argument 0 is processed,
+    // the type_string is set to the type of the element.
+    // Then getSizeString() is called, and argument 2 is processed, and the type within the
+    // sizeof() expression is then checked to match the type string.
+    // The functions should be called in this specific order.
+
+    // Never assume that your functions will return successfully,
+    // always catch any possible exceptions.
+
+    // First, argument 0 (void *s) is processed by getArgString().
+    try {
+        s = getArgString(call_expr->getArg(0)->IgnoreParenCasts(), "i");
+    } catch (const exception& exp) {
+        outputSource(call_expr, errs());
+        errs() << exp.what() << '\n';
+        errs() << "\n\n";
+        return;  // Don't do the replacement upon failure to retrieve an argument.
+    } catch(const string& exp) {
+        outputSource(call_expr, errs());
+        errs() << exp << '\n';
+        errs() << "\n\n";
+        return;
+    } catch (...) {
+        outputSource(call_expr, errs());
+        errs() << "An unexpected exception was raised.\n";
+        errs() << "\n\n";
+        return;
+    }
+
+    // Second, argument 1 (int c) is processed by getFillString().
+    try {
+        c = getFillString(call_expr->getArg(1)->IgnoreParenCasts());
+    } catch (const exception& exp) {
+        outputSource(call_expr, errs());
+        errs() << exp.what() << '\n';
+        errs() << "\n\n";
+        return;  // Don't do the replacement upon failure to retrieve an argument.
+    } catch(const string& exp) {
+        outputSource(call_expr, errs());
+        errs() << exp << '\n';
+        errs() << "\n\n";
+        return;
+    } catch (...) {
+        outputSource(call_expr, errs());
+        errs() << "An unexpected exception was raised.\n";
+        errs() << "\n\n";
+        return;
+    }
+
+    // Third, argument 2 (size_t n) is processed by getSizeString().
+    try {
+        size = getSizeString(call_expr->getArg(2)->IgnoreParenCasts());
+    } catch (const exception& exp) {
+        outputSource(call_expr, errs());
+        errs() << exp.what() << '\n';
+        errs() << "\n\n";
+        return;  // Don't do the replacement upon failure to retrieve an argument.
+    } catch(const string& exp) {
+        outputSource(call_expr, errs());
+        errs() << exp << '\n';
+        errs() << "\n\n";
+        return;
+    } catch (...) {
+        outputSource(call_expr, errs());
+        errs() << "An unexpected exception was raised.\n";
+        errs() << "\n\n";
+        return;
+    }
+
+    unsigned indent = SM->getPresumedLoc(loc_start).getColumn();
+    // Decrement, but don't let it go "negative".
+    // For unsigned numbers, (indent != 0) is a better condition, because there are no
+    // negative numbers, but we don't want to decrement 0 and roll over to the largest
+    // possible unsigned number.
+    // NOTE: This is needed because initially the indent position is one character position
+    // after the starting location. It needs to be at the exact character position of the
+    // starting location.
+    // If the indent is already 0, then we can't go any farther to the left.
+    // Conditional operator is more efficient in that there is no branch instruction.
+    indent = (indent != 0) ? (indent - 1) : indent;
+
+    // This is a particular replacement, whereas replacements is a map of all of them.
+    string replacement;
+    bool size_is_zero = size == "0"   || size == "0U"  || size == "0L" ||
+                        size == "0UL" || size == "0LL" || size == "0ULL";
+    // If the size argument == 0, then don't do a memset(), just get rid of the
+    // function call.
+    if (size_is_zero) {
+        replacement = "";
     } else {
-        call_expr = result.Nodes.getNodeAs<CallExpr>("memset_call");
-        loc_start = call_expr->getBeginLoc();
+        replacement.append("{\r\n");
+        replacement.append(indent+2, ' ');
+        replacement.append("for (int i = 0; i < " + size + "; ++i) {\r\n");
+        replacement.append(indent+4, ' ');
+        // s = c;
+        replacement.append(s + " = " + c + ";\r\n");
+        replacement.append(indent+2, ' ');
+        replacement.append("}\r\n");
+        replacement.append(indent, ' ');
+        replacement.append("}");
     }
 
-    // if we succeeded getting a CallExpr out of the result.
-    if (call_expr != nullptr) {
-        // strings are default constructed to ""
-        // They are repreenting the three arguments to memset().
-        // void *memset(void *s, int c, size_t n);
-        string s;
-        string c;
-        string size;
+    // Get the location after the semicolon following the memset() call
+    SourceLocation after_semi_loc = Lexer::findLocationAfterToken(call_expr->getEndLoc(), semi, *SM, LangOptions(), false);
+    if (!after_semi_loc.isValid()) {
+        outputSource(call_expr, errs());
+        errs() << "ERROR: Unable to find semicolon location after memset() call.\n";
+        errs() << "\n\n";
+        return;
+    }
+    CharSourceRange range = CharSourceRange::getTokenRange(loc_start, after_semi_loc);
+    Replacement memset_rep(*SM, range, replacement);
 
-        // NOTE: Do not rearrange the order of these three chunks of code!
-        // This is important, the arguments of memset() are processed from left to right.
-        // First,  argument 0 (void *s) is processed by getArgString().
-        // Second, argument 1 (int c) is processed by getFillString().
-        // Third,  argument 2 (size_t n) is processed by getSizeString().
-        // This is necessary in order to properly determine the element type.
-        // The class data member string type_string is set to the type of the element, and is
-        // subsequently used for error checking.
-        // Initiallly it gets constructed to the empty string.
-        // Then when getArgString() is called for the first time and argument 0 is processed,
-        // the type_string is set to the type of the element.
-        // Then getSizeString() is called, and argument 2 is processed, and the type within the
-        // sizeof() expression is then checked to match the type string.
-        // The functions should be called in this specific order.
+    // returns 0 upon success, and non-0 upon error condition.
+    if (Error err = (*replacements)[memset_rep.getFilePath()].add(memset_rep)) {
+        outputSource(loc_start, after_semi_loc, errs());
+        errs() << "ERROR: Error adding replacement that removes memset() call.\n";
+        errs() << "\n\n";
+        return;
+    }
+    if (print_debug_output) {
+        outputSource(loc_start, after_semi_loc, outs());
+        outs() << "replaced with:\n" << replacement << '\n';
+        outs() << "\n\n";
+    }
 
-        // Never assume that your functions will return successfully,
-        // always catch any possible exceptions.
-
-        // First, argument 0 (void *s) is processed by getArgString().
-        try {
-            s = getArgString(call_expr->getArg(0)->IgnoreParenCasts(), "i");
-        } catch (const exception& exp) {
-            outputSource(call_expr, errs());
-            errs() << exp.what() << '\n';
-            errs() << "\n\n";
-            return;  // Don't do the replacement upon failure to retrieve an argument.
-        } catch(const string& exp) {
-            outputSource(call_expr, errs());
-            errs() << exp << '\n';
-            errs() << "\n\n";
-            return;
-        } catch (...) {
-            outputSource(call_expr, errs());
-            errs() << "An unexpected exception was raised.\n";
-            errs() << "\n\n";
-            return;
-        }
-
-        // Second, argument 1 (int c) is processed by getFillString().
-        try {
-            c = getFillString(call_expr->getArg(1)->IgnoreParenCasts());
-        } catch (const exception& exp) {
-            outputSource(call_expr, errs());
-            errs() << exp.what() << '\n';
-            errs() << "\n\n";
-            return;  // Don't do the replacement upon failure to retrieve an argument.
-        } catch(const string& exp) {
-            outputSource(call_expr, errs());
-            errs() << exp << '\n';
-            errs() << "\n\n";
-            return;
-        } catch (...) {
-            outputSource(call_expr, errs());
-            errs() << "An unexpected exception was raised.\n";
-            errs() << "\n\n";
-            return;
-        }
-
-        // Third, argument 2 (size_t n) is processed by getSizeString().
-        try {
-            size = getSizeString(call_expr->getArg(2)->IgnoreParenCasts());
-        } catch (const exception& exp) {
-            outputSource(call_expr, errs());
-            errs() << exp.what() << '\n';
-            errs() << "\n\n";
-            return;  // Don't do the replacement upon failure to retrieve an argument.
-        } catch(const string& exp) {
-            outputSource(call_expr, errs());
-            errs() << exp << '\n';
-            errs() << "\n\n";
-            return;
-        } catch (...) {
-            outputSource(call_expr, errs());
-            errs() << "An unexpected exception was raised.\n";
-            errs() << "\n\n";
-            return;
-        }
-
-        unsigned indent = SM->getPresumedLoc(loc_start).getColumn();
-        // Decrement, but don't let it go "negative".
-        // For unsigned numbers, (indent != 0) is a better condition, because there are no
-        // negative numbers, but we don't want to decrement 0 and roll over to the largest
-        // possible unsigned number.
-        // NOTE: This is needed because initially the indent position is one character position
-        // after the starting location. It needs to be at the exact character position of the
-        // starting location.
-        // If the indent is already 0, then we can't go any farther to the left.
-        // Conditional operator is more efficient in that there is no branch instruction.
-        indent = (indent != 0) ? (indent - 1) : indent;
-
-        // This is a particular replacement, whereas replacements is a map of all of them.
-        string replacement;
-        bool size_is_zero = size == "0"   || size == "0U"  || size == "0L" ||
-                            size == "0UL" || size == "0LL" || size == "0ULL";
-        // If the size argument == 0, then don't do a memset(), just get rid of the
-        // function call.
-        if (size_is_zero) {
-            replacement = "";
-        } else {
-            replacement.append("{\r\n");
-            replacement.append(indent+2, ' ');
-            replacement.append("for (int i = 0; i < " + size + "; ++i) {\r\n");
-            replacement.append(indent+4, ' ');
-            // s = c;
-            replacement.append(s + " = " + c + ";\r\n");
-            replacement.append(indent+2, ' ');
-            replacement.append("}\r\n");
-            replacement.append(indent, ' ');
-            replacement.append("}");
-        }
-
-        // Get the location after the semicolon following the memset() call
-        SourceLocation after_semi_loc = Lexer::findLocationAfterToken(call_expr->getEndLoc(), semi, *SM, LangOptions(), false);
-        if (!after_semi_loc.isValid()) {
-            outputSource(call_expr, errs());
-            errs() << "ERROR: Unable to find semicolon location after memset() call.\n";
-            errs() << "\n\n";
-            return;
-        }
-        CharSourceRange range = CharSourceRange::getTokenRange(loc_start, after_semi_loc);
-        Replacement memset_rep(*SM, range, replacement);
-
-        // returns 0 upon success, and non-0 upon error condition.
-        if (Error err = (*replacements)[memset_rep.getFilePath()].add(memset_rep)) {
-            outputSource(loc_start, after_semi_loc, errs());
-            errs() << "ERROR: Error adding replacement that removes memset() call.\n";
-            errs() << "\n\n";
-            return;
-        }
-        if (print_debug_output) {
-            outputSource(loc_start, after_semi_loc, outs());
-            outs() << "replaced with:\n" << replacement << '\n';
-            outs() << "\n\n";
-        }
-        // No error, increment the number of memset() replacements to print to the user.
+    if (replacement.empty())
+    // increment the number of memset() removals to print to the user.
+        ++num_removals;
+    else
+    // increment the number of memset() replacements to print to the user.
         ++num_replacements;
+}
+
+
+void RemoveMemsetMatchCallback::remove_memset_call(const CallExpr* call_expr, SourceLocation loc_start)
+{
+    SourceLocation loc_end = call_expr->getEndLoc();
+    CharSourceRange range = CharSourceRange::getTokenRange(loc_start, loc_end);
+    string removal;
+
+    Replacement remove_memset(*SM, range, removal);
+
+    // returns 0 upon success, and non-0 upon error condition.
+    if (Error err = (*replacements)[remove_memset.getFilePath()].add(remove_memset)) {
+        outputSource(loc_start, loc_end, errs());
+        errs() << "ERROR: Error adding replacement that removes memset() call.\n";
+        errs() << "\n\n";
+        return;
     }
+    if (print_debug_output) {
+        outputSource(loc_start, loc_end, outs());
+        outs() << "replaced with:\n" << removal << '\n';
+        outs() << "\n\n";
+    }
+
+    // increment the number of memset() removals to print to the user.
+    ++num_removals;
 }
 
 

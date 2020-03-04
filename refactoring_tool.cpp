@@ -238,7 +238,6 @@ int main(int argc, const char **argv) {
 		    errs() << "Error in running the Static Analyzer: " << result << "\n";
 		    return result;
 	    }
-    //}
 
         // This second MatchFinder is responsible for applying refactorings in the second round.
 	    MatchFinder mf2;

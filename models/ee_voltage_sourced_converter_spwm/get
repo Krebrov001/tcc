@@ -1,0 +1,4 @@
+#!/bin/bash
+
+find ~/physmod -name '*.c' -exec grep -Pzl "(?s)$1[^;]*{" {} + | xargs cp -n -v -t ~/research/ONR/current/tcc/models/simscape_sources/
+#find . -name '*.c' -exec grep -Pzl "(?s)$1[^;]*{" {} + | xargs

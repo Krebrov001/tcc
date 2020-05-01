@@ -2,7 +2,7 @@
 #include "ee_asm_dtc_svm.h"
 #include <string.h>
 
-#define TIME_STEP_SIZE (5e-6) // Model originally variable step, unknown if this is sufficiently small
+#define TIME_STEP_SIZE (5e-6) // Model originally fixed step
 
 #define SIM_TIME (2.5)
 

@@ -1,3 +1,39 @@
+# TCC .gitignore is based on C++ .gitignore
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+refactoring_tool
+
+# build directory
+build
+
+# docs directory
+docs
+
+# hls directory
 hls/*/.apc
 hls/*/.vivado_hls_log_all.xml
 hls/*.log
@@ -11,3 +47,4 @@ hls/*/*/script.tcl
 hls/*/.project
 hls/*/.cproject
 hls/*/.settings
+

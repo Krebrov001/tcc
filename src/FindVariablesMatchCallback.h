@@ -59,7 +59,7 @@ class FindVariablesMatchCallback : public BaseMatchCallback
      * and saves them into variable_declarations and variable_uses.
      * This method does not perform any refactorings or source code replacements.
      *
-     * IMPORTANT:
+     * @note IMPORTANT:
      * This method has to be called before collectResults() ALWAYS, becuase collectResults() depends
      * on results computed by this method(), identifying the variable declarations and uses.
      *

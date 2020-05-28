@@ -25,13 +25,18 @@ using clang::Decl;
 using clang::Expr;
 
 
-typedef std::pair<std::string, std::string> key_type;
-
+/**
+ * @brief CallBack class : Remove Unused Variables Module
+ *
+ * @details This class finds all the variables that are declared but unused.
+ * This information is retrieved by calling collectResults() method.
+ */
 class FindVariablesMatchCallback : public BaseMatchCallback
 {
+    typedef std::pair<std::string, std::string> key_type;
   public:
     /**
-     * This is the drfault constructor, which initializes all the member variables of the class
+     * This is the default constructor, which initializes all the member variables of the class
      * and calls the base class constructor.
      */
     explicit FindVariablesMatchCallback() : BaseMatchCallback() {}
@@ -40,7 +45,7 @@ class FindVariablesMatchCallback : public BaseMatchCallback
      * This method creates and "returns" the AST matchers that match expressions specifically
      * handled by this CallBack class, through the pass by reference parameter.
      *
-     * @param MatchFinder& mf - A non const reference to the MatchFinder in the main() function.
+     * @param mf  A non const reference to the MatchFinder in the main() function.
      *                     When this object is passed into this method, it is modified, the AST
      *                     matchers are added to it. This is my solution for "returning" multiple
      *                     AST matchers of possibly different types.
@@ -58,7 +63,7 @@ class FindVariablesMatchCallback : public BaseMatchCallback
      * This method has to be called before collectResults() ALWAYS, becuase collectResults() depends
      * on results computed by this method(), identifying the variable declarations and uses.
      *
-     * @param const MatchResult& result - The matched result returned from the AST matcher.
+     * @param result  The matched result returned from the AST matcher.
      */
     void run(const MatchFinder::MatchResult& result) override;
 
@@ -68,9 +73,9 @@ class FindVariablesMatchCallback : public BaseMatchCallback
      * and then unused in the program (using variable_declarations and variable_uses), and it will
      * save these variables into the vector.
      *
-     * @param vector<key_type>& variables - A reference to the vector of all unused variables.
-     *                          Specifically this parameter must be a reference to the private vector
-     *                          RemoveVariablesMatchCallback.variables
+     * @param variables  A reference to the vector of all unused variables.
+     *                   Specifically this parameter must be a reference to the private vector
+     *                   RemoveVariablesMatchCallback.variables
      *        The parameter should be what is returned by RemoveVariablesMatchCallback.getVector()
      *   find_variables_match_callback.collectResults(remove_variables_match_callback.getVector());
      */
@@ -80,11 +85,11 @@ class FindVariablesMatchCallback : public BaseMatchCallback
 
     /* Private member variables. */
 
-    // This map stores as keys, a pair representing the name of the variable, and the function inside
-    // of which it is declared, of all variable declarations.
+    /// This map stores as keys, a pair representing the name of the variable, and the function inside
+    /// of which it is declared, of all variable declarations.
     set<key_type> variable_declarations;
-    // This map stores as keys, a pair representing the name of the variable, and the function inside
-    // of which it is declared, of all variables that are actually used.
+    /// This map stores as keys, a pair representing the name of the variable, and the function inside
+    /// of which it is declared, of all variables that are actually used.
     set<key_type> variable_uses;
     // Add other variables here as needed.
 };

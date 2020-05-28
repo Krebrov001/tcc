@@ -19,6 +19,15 @@ using clang::SourceManager;
 using clang::SourceLocation;
 using clang::ast_matchers::MatchFinder;
 
+/**
+ * @brief Base CallBack class of the inheritance hierarchy.
+ *
+ * @details This base class provides a certain set of standard facilities and methods for derived
+ * CallBack classes, making development easier. This is a generic CallBack class containing some
+ * common behaviors that all CallBack classes should have. It doesn't do anything by itself.
+ * You have to inherit from this class instead of MatchFinder::MatchCallback for creating specific
+ * CallBack classes.
+ */
 class BaseMatchCallback : public MatchFinder::MatchCallback
 {
   public:
@@ -34,7 +43,7 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
      *
      * This method just assigns the SourceManager SM protected data member.
      *
-     * @param const MatchResult& result - The matched result returned from the AST matcher.
+     * @param result The matched result returned from the AST matcher.
      */
     void run(const MatchFinder::MatchResult& result) override;
 
@@ -45,7 +54,7 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
      *
      * The implementation of template methods must be inside the definition of a class.
      *
-     * @param const astElement* element - This is a template method, meaning that it can be called
+     * @param element  This is a template method, meaning that it can be called
      *              with an object of any type which implements the getBeginLoc() and getEndLoc()
      *              member methods inside itself, or with an object of a derived type.
      *              This is a template parameter simply because clang::Expr and clang::Decl have
@@ -54,14 +63,14 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
      *              is inherited from either clang::Expr or clang::Decl. Hence it is an element in
      *              the Clang AST (an astElement).
      *
-     * @param raw_ostream& output - A reference to an LLVM raw output stream, which is
+     * @param output  A reference to an LLVM raw output stream, which is
      *                     an extremely fast bulk output stream that can only output to a stream.
      *                     Data can be written to a different destination depending on the value of
      *                     this parameter. It can be llvm::outs(), llvm::errs(), or llvm::nulls().
      *                     The reference is non-const because writing output to an instance of a
      *                     stream class causes that object to be modified.
      *
-     * @param string extraString = "" - An optional string that may be specified to be printed
+     * @param extraString  An optional string that may be specified to be printed
      *               directly after the source code of the astElement. If this parameter would not
      *               be provided, it would by default evaluate to the empty string and just the
      *               astElement would be printed, without any extra text at the end.
@@ -88,18 +97,18 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
      * This method is marked as virtual because it may be overridden by a derived class.
      * The derived class can change the behavior of this method.
      *
-     * @param const SourceLocation* loc_start - The starting location of the code text.
+     * @param loc_start  The starting location of the code text.
      *
-     * @param const SourceLocation* loc_end - The end location of the code text.
+     * @param loc_end  The end location of the code text.
      *
-     * @param raw_ostream& output - A reference to an LLVM raw output stream, which is
+     * @param output  A reference to an LLVM raw output stream, which is
      *                     an extremely fast bulk output stream that can only output to a stream.
      *                     Data can be written to a different destination depending on the value of
      *                     this parameter. It can be llvm::outs(), llvm::errs(), or llvm::nulls().
      *                     The reference is non-const because writing output to an instance of a
      *                     stream class causes that object to be modified.
      *
-     * @param string extraString = "" - An optional string that may be specified to be printed
+     * @param extraString  An optional string that may be specified to be printed
      *               directly after the source code of delimited by these two SourceLocations.
      *               If this parameter would not be provided, it would by default evaluate to the
      *               empty string and just the source code would be printed, without any extra text at the end.
@@ -112,7 +121,7 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
      *
      * The implementation of template methods must be inside the definition of a class.
      *
-     * @param const astElement* element - This is a template method, meaning that it can be called
+     * @param element  This is a template method, meaning that it can be called
      *              with an object of any type which implements the getBeginLoc() and getEndLoc()
      *              member methods inside itself, or with an object of a derived type.
      *              This is a template parameter simply because clang::Expr and clang::Decl have
@@ -121,7 +130,7 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
      *              is inherited from either clang::Expr or clang::Decl. Hence it is an element in
      *              the Clang AST (an astElement).
      *
-     * @return string - A string representation of the passed in astElement,
+     * @return string  A string representation of the passed in astElement,
      *         the exact string text of that astElement.
      */
     template <typename astElement>
@@ -147,11 +156,11 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
      * This method is marked as virtual because it may be overridden by a derived class.
      * The derived class can change the behavior of this method.
      *
-     * @param const SourceLocation* loc_start - The starting location of the code text.
+     * @param loc_start  The starting location of the code text.
      *
-     * @param const SourceLocation* loc_end - The end location of the code text.
+     * @param loc_end  The end location of the code text.
      *
-     * @return string - A string representation of the code text between these two SourceLocations.
+     * @return string  A string representation of the code text between these two SourceLocations.
      */
     virtual string getAsString(const SourceLocation& loc_start, const SourceLocation& loc_end) const;
 
@@ -160,14 +169,14 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
      * backwards from the starting SourceLocation for that char, and returns the SourceLocation of
      * the first occurence, as an offset from the starting SourceLocation.
      *
-     * @param const SourceLocation* loc_start - The starting location from which to start searching.
+     * @param loc_start  The starting location from which to start searching.
      *
-     * @param char character - The first occurence of this character is searched for.
+     * @param character  The first occurence of this character is searched for.
      *
-     * @param bool forwards - If true, the method searches for the char forwards from the loc_start.
-     *                      If false, the method searches for the char backwards from the loc_start.
+     * @param forwards  If true, the method searches for the char forwards from the loc_start.
+     *                  If false, the method searches for the char backwards from the loc_start.
      *
-     * @return SourceLocation - For the input SourceLocation, this function returns a SourceLocation
+     * @return SourceLocation  For the input SourceLocation, this function returns a SourceLocation
      *         that "points to" the first location of the found character.
      */
     SourceLocation getCharOffsetLoc(const SourceLocation& loc_start, char character, bool forwards) const;
@@ -176,9 +185,9 @@ class BaseMatchCallback : public MatchFinder::MatchCallback
 
     /// The SourceManager is protected because I want other classes that inherit from this one
     /// to be able to access this variable.
-    // This class handles loading and caching of source files into memory.
-    // It is the middleman between the refactoring tool and the actual C source code which is
-    // being analyzed. This enables us to do source code replacements.
+    /// This class handles loading and caching of source files into memory.
+    /// It is the middleman between the refactoring tool and the actual C source code which is
+    /// being analyzed. This enables us to do source code replacements.
     SourceManager* SM;
 };
 

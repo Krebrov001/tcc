@@ -18,6 +18,17 @@ using clang::tooling::Replacements;
 using clang::ast_matchers::MatchFinder;
 
 
+/**
+ * @brief CallBack class : Remove Indirect Recursion module
+ *
+ * @details This class performs a refactoring that separates the generated step_major() and
+ * step_minor() functions.
+ *
+ * It removes all if (step_major) {} statements from step_minor() function and all if (step_minor) {}
+ * statements from step_major() function.
+ *
+ * This class is intended to be used together with CreateMinorStepFunction.
+ */
 class SeparateStepFunctions : public BaseMatchCallback
 {
   public:
@@ -26,12 +37,10 @@ class SeparateStepFunctions : public BaseMatchCallback
      * The explicit keyword means that we cannot use the assignment = operator to initialize an
      * instance of this class.
      *
-     * @param map<string, Replacements> * replacements - A pointer to a std::map of strings and
-     *                                    Replacements objects, which is what we will use to
-     *                                    actually perform the source code replacements in the
-     *                                    refactoring process.
+     * @param replacements  A pointer to a std::map of strings and Replacements objects, which is
+     * what we will use to actually perform the source code replacements in the refactoring process.
      *
-     * @param string filename - The name of the file that is currently being processed.
+     * @param filename  The name of the file that is currently being processed.
      */
     explicit SeparateStepFunctions(map<string, Replacements> * replacements, string filename)
      : BaseMatchCallback(), replacements{replacements}
@@ -52,7 +61,7 @@ class SeparateStepFunctions : public BaseMatchCallback
      * This method creates and "returns" the AST matchers that match expressions specifically
      * handled by this CallBack class, through the pass by reference parameter.
      *
-     * @param MatchFinder& mf - A non const reference to the MatchFinder in the main() function.
+     * @param mf  A non const reference to the MatchFinder in the main() function.
      *                     When this object is passed into this method, it is modified, the AST
      *                     matchers are added to it. This is my solution for "returning" multiple
      *                     AST matchers of possibly different types.
@@ -64,19 +73,19 @@ class SeparateStepFunctions : public BaseMatchCallback
      * the function minor_step(), and it removes all state minor if () {} statements from the
      * function major_step(), also known as step();
      *
-     * @param const MatchFinder::MatchResult result - Found matching results.
+     * @param result - Found matching results.
      *              This object is actually a reference to an object managed by the RefactoringTool
      *              which resides in the main() function of this application.
      */
     void run(const MatchFinder::MatchResult& result) override;
 
     /**
-     * Returns the number of major if () {} statements that were removed from the step_minor() function.
+     * @return the number of major if () {} statements that were removed from the step_minor() function.
      */
     unsigned int getNumMajorIfStatementsRemoved() const { return num_major_if_statements_removed; }
 
     /**
-     * Return the number of minor if () {} statements that were removed from the step_major() function.
+     * @return the number of minor if () {} statements that were removed from the step_major() function.
      */
     unsigned int getNumMinorIfStatementsRemoved() const { return num_minor_if_statements_removed; }
 
@@ -84,20 +93,21 @@ class SeparateStepFunctions : public BaseMatchCallback
     /**
      * This function removes an if () {} statement marking a major or minor step, from the source code.
      *
-     * @param const Expr* if_time_step - This expression points to an if () {} statement that is to
-     *                    ve removed from the source code text.
+     * @param if_time_step  This expression points to an if () {} statement that is to
+     *                      be removed from the source code text.
      *
-     * @param string type_of_step - This string indicates the type of step, either a majopr one or a minor one.
-     *               Valid arguments are:  "major" or
-     *                                     "minor"
+     * @param type_of_step  This string indicates the type of step, either a major one or a minor one.
+     *                      Valid arguments are:  "major" or
+     *                                            "minor"
      */
     void remove_time_step_function(const IfStmt* if_time_step, string type_of_step);
 
     /* Private member variables. */
 
     map<string, Replacements>* replacements;
-    // This string is the name of the step function of the model.
+    /// This string is the name of the step function of the model.
     string step_function_name;
+    /// This string is the name of the correcponding step_minor() function.
     string step_minor_function_name;
 
     unsigned int num_major_if_statements_removed{0};

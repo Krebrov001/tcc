@@ -29,6 +29,11 @@ using std::string;
 
 // If classes defnintions are relatively small, then it's OK to put them in the header file.
 
+/**
+ * @brief Throwable class for exception handling.
+ *
+ * @details Thrown by RemoveMemcpyMatchCallback::getSizeString() upon unsupported operator.
+ */
 class BadOperator : public exception {
   public:
     explicit BadOperator(const char* reason) : reason(reason) {}
@@ -42,6 +47,11 @@ class BadOperator : public exception {
 };
 
 
+/**
+ * @brief Throwable class for exception handling.
+ *
+ * @details Thrown by various methods in RemoveMemcpyMatchCallback if the data type of the argument and the sizeof() data type don't match.
+ */
 class NonMatchingTypes : public exception {
   public:
     NonMatchingTypes(const string& data_type1, const string& data_type2) {

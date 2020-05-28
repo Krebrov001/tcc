@@ -19,6 +19,13 @@ using clang::tooling::Replacements;
 using clang::ast_matchers::MatchFinder;
 
 
+/**
+ * @brief CallBack class : Remove Indirect Recursion module
+ *
+ * @details This class performs a refactoring that creates the declaration as well as the definition
+ * of the minor step function, and replaces all calls to the major step function with calls to the
+ * minor step function.
+ */
 class CreateMinorStepFunction : public BaseMatchCallback
 {
   public:
@@ -27,12 +34,11 @@ class CreateMinorStepFunction : public BaseMatchCallback
      * The explicit keyword means that we cannot use the assignment = operator to initialize an
      * instance of this class.
      *
-     * @param map<string, Replacements> * replacements - A pointer to a std::map of strings and
-     *                                    Replacements objects, which is what we will use to
-     *                                    actually perform the source code replacements in the
-     *                                    refactoring process.
+     * @param replacements A pointer to a std::map of strings and Replacements objects, which is
+     *                     what we will use to actually perform the source code replacements in the
+     *                     refactoring process.
      *
-     * @param string filename - The name of the file that is currently being processed.
+     * @param filename  The name of the file that is currently being processed.
      */
     explicit CreateMinorStepFunction(map<string, Replacements> * replacements, string filename)
      : BaseMatchCallback(), replacements{replacements}
@@ -52,7 +58,7 @@ class CreateMinorStepFunction : public BaseMatchCallback
      * This method creates and "returns" the AST matchers that match expressions specifically
      * handled by this CallBack class, through the pass by reference parameter.
      *
-     * @param MatchFinder& mf - A non const reference to the MatchFinder in the main() function.
+     * @param mf  A non const reference to the MatchFinder in the main() function.
      *                     When this object is passed into this method, it is modified, the AST
      *                     matchers are added to it. This is my solution for "returning" multiple
      *                     AST matchers of possibly different types.
@@ -66,22 +72,22 @@ class CreateMinorStepFunction : public BaseMatchCallback
      * - The definition of the step_minor() function is inserted into the source code.
      * - A call to the step() function is replaced with a call to the step_minor() function.
      *
-     * @param const MatchFinder::MatchResult result - Found matching results.
+     * @param result  Found matching results.
      */
     void run(const MatchFinder::MatchResult& result) override;
 
     /**
-     * Returns the number of minor_step() functions inserted into the source code.
+     * @return unsigned int number of minor_step() functions inserted into the source code.
      */
     unsigned int getNumMinorStepFunctions() const { return num_minor_step_functions; }
 
     /**
-     * Returns the number of minor_step() prototype declarations inserted into the source code.
+     * @return unsigned int the number of minor_step() prototype declarations inserted into the source code.
      */
     unsigned int getNumInsertedDeclarations() const { return num_inserted_declarations; }
 
     /**
-     * Returns the number of calls to step() that were renamed to step_minor().
+     * @return unsigned int the number of calls to step() that were renamed to step_minor().
      */
     unsigned int getNumCallRenames() const { return num_call_renames; }
 
@@ -90,8 +96,7 @@ class CreateMinorStepFunction : public BaseMatchCallback
      * This method inserts the definition of step_minor() function directly after the definition of
      * the corresponding step() function into the source code.
      *
-     * @param const FunctionDecl* step_function - The AST node representing the definition of the
-     *                                            step() function.
+     * @param step_function  The AST node representing the definition of the step() function.
      */
     void insert_function_body(const FunctionDecl* step_function);
 
@@ -101,24 +106,22 @@ class CreateMinorStepFunction : public BaseMatchCallback
      * The prototype declaration of the step_minor() function is inserted not into the *.c file but
      * into the *.h file.
      *
-     * @param const FunctionDecl* step_declaration - The AST node representing the prototype declaration
-     *                                               of the step() function.
+     * @param step_declaration  The AST node representing the prototype declaration of the step() function.
      */
     void insert_function_declaration(const FunctionDecl* step_declaration);
 
     /**
      * This method renames the call to the step() function, into a call to the step_minor() function.
      *
-     * @param const CallExpr* function_call - The AST node representing the call to the step()
-     *                                        function, to be renamed into a call to the step_minor()
-     *                                        function.
+     * @param function_call  The AST node representing the call to the step() function,
+     *                       to be renamed into a call to the step_minor() function.
      */
     void rename_step_call(const CallExpr* function_call);
 
     /* Private member variables. */
 
     map<string, Replacements>* replacements;
-    // This string is the name of the step function of the model.
+    /// This string is the name of the step function of the model.
     string step_function_name;
     unsigned int num_minor_step_functions{0};
     unsigned int num_call_renames{0};

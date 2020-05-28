@@ -20,18 +20,24 @@ using clang::ast_matchers::MatchFinder;
 
 
 /**
- * This class is derived from MultiplexConsumer.
+ * @brief Static Analysis API : AST Consumer (helper class)
+ *
+ * @details This class is derived from MultiplexConsumer.
  * It seems that MultiplexConsumer is the way to go if you want to use the same AST for custom
  * frontend action and Clang static analysis.
+ *
  * The vector< unique_ptr<ASTConsumer> > Consumers
  * is a vector of ASTConsumers that is used by the ClangTool to perform actions at various points
  * in the AST.
+ *
  * MultiplexConsumer itself derived from ASTConsumer, and I don't know why it requires a vector of
  * ASTConsumers as a data member.
+ *
  * I do not know the reason why the unique_ptr<MatchFinder> Finder is required as a data member.
  * As far as I know, that is the design of the API which is required by the ClangTool.
  * It seems that the unique_ptr<MatchFinder> Finder is used by some internal Clang Tooling
  * Infrastructure for, I don't know something.
+ *
  * Further experiments have shown that for running deadcode.DeadStores through the Static Analyzer,
  * the MultiplexConsumer is not sufficient, as you might get a segmentation fault, because it is
  * lacking a unique_ptr<MatchFinder> Finder.

@@ -30,7 +30,9 @@ using clang::tooling::FrontendActionFactory;
 
 
 /**
- * The StaticAnalysisActionFactory creates instances of class StaticAnalysisAction for each
+ * @brief Static Analysis API : Factory for creating Actions
+ *
+ * @details The StaticAnalysisActionFactory creates instances of class StaticAnalysisAction for each
  * translation unit that there is in order to process it. The StaticAnalysisAction in turn creates
  * instances of class StaticAnalysisDiagnosticConsumer in order to facilitate collecting diagnistics
  * from the Static Analyzer.
@@ -40,14 +42,17 @@ class StaticAnalysisActionFactory : public FrontendActionFactory {
     /**
      * The constructor initializes all the data members of the class.
      *
-     * @param vector< pair<SourceLocation, SourceLocation> >& SourcePairs - This is a vector
-     *                of pairs of SourceLocations marking the start and end respectively of the
-     *                unused assignments which are to be replaced. This vector is created and owned
-     *                as a data member by the class RemoveAssignmentMatchCallback. The only valid
-     *                argument for this parameter when calling the constructor is
-     *                RemoveAssignmentMatchCallback::getVector()
-     *                StaticAnalysisActionFactory creates StaticAnalysisAction objects, and it
-     *                passes along the reference to the vector onto these newly created objects.
+     * @param SourcePairs - This is a vector of pairs of SourceLocations marking the start and end
+     * respectively of the unused assignments which are to be replaced. This vector is created and
+     * owned as a data member by the class RemoveAssignmentMatchCallback.
+     *
+     * The only valid argument for this parameter when calling the constructor is
+     * @code
+     *   RemoveAssignmentMatchCallback::getVector()
+     * @endcode
+     *
+     * StaticAnalysisActionFactory creates StaticAnalysisAction objects, and it passes along the
+     * reference to the vector onto these newly created objects.
      */
     StaticAnalysisActionFactory(vector< pair<SourceLocation, SourceLocation> >& SourcePairs)
      : SourcePairs(SourcePairs) {}
@@ -74,14 +79,14 @@ class StaticAnalysisActionFactory : public FrontendActionFactory {
                        DiagnosticConsumer* DiagConsumer) override;
 
   private:
-    // This is a reference to a vector of pairs of SourceLocations delimiting the starts and ends
-    // respectively of code text which is to be removed from the source code.
-    // This is a reference to a vector that is managed by the class RemoveAssignmentMatchCallback,
-    // which actually removes the unused assignments.
-    // This reference to the vector is passed onto the StaticAnalysisAction objects when they are
-    // created, that in turn create StaticAnalysisDiagnosticConsumer objects and pass the
-    // reference to the vector along to them as well. The StaticAnalysisDiagnosticConsumer is what
-    // really uses this vector, and fills it up with data from running the Static Analyzer.
+    /// This is a reference to a vector of pairs of SourceLocations delimiting the starts and ends
+    /// respectively of code text which is to be removed from the source code.
+    /// This is a reference to a vector that is managed by the class RemoveAssignmentMatchCallback,
+    /// which actually removes the unused assignments.
+    /// This reference to the vector is passed onto the StaticAnalysisAction objects when they are
+    /// created, that in turn create StaticAnalysisDiagnosticConsumer objects and pass the
+    /// reference to the vector along to them as well. The StaticAnalysisDiagnosticConsumer is what
+    /// really uses this vector, and fills it up with data from running the Static Analyzer.
     vector< pair<SourceLocation, SourceLocation> >& SourcePairs;
 };
 

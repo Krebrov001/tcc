@@ -115,6 +115,12 @@ verify:
 	@$(MAKE) -s -C models clean
 
 
+# Create the doxygen documentation
+.PHONY: docs
+docs:
+	doxygen Doxyfile
+
+
 # Run static code analysis checks
 .PHONY: tidy
 tidy:

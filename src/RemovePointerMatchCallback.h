@@ -23,6 +23,18 @@ using clang::SourceLocation;
 using clang::tooling::Replacements;
 using clang::ast_matchers::MatchFinder;
 
+/**
+ * @brief CallBack class : Remove Global Pointers Module
+ *
+ * @details This class implements a refactoring that removes global pointers to structures.
+ * It performs several individual code transformations such as
+ * - deleting the definition of the global pointer,
+ * - replacing all instances of the pointer use with the address of the pointed strucute,
+ * - replacing all instances of pointer dereference with the structure itself,
+ * - replacing all instances of dereferencing the pointer to get a member of the structure using
+ * the -> operator with direct address of that member from the strucutre itself using the . operator.
+ *
+ */
 class RemovePointerMatchCallback : public BaseMatchCallback
 {
   public:
@@ -31,10 +43,8 @@ class RemovePointerMatchCallback : public BaseMatchCallback
      * The explicit keyword means that we cannot use the assignment = operator to initialize an
      * instance of this class.
      *
-     * @param map<string, Replacements> * replacements - A pointer to a std::map of strings and
-     *                                    Replacements objects, which is what we will use to
-     *                                    actually perform the source code replacements in the
-     *                                    refactoring process.
+     * @param replacements  A pointer to a std::map of strings and Replacements objects, which is
+     * what we will use to actually perform the source code replacements in the refactoring process.
      */
     explicit RemovePointerMatchCallback(map<string, Replacements> * replacements)
       : BaseMatchCallback(), replacements(replacements) {}
@@ -43,7 +53,7 @@ class RemovePointerMatchCallback : public BaseMatchCallback
      * This method creates and "returns" the AST matchers that match expressions specifically
      * handled by this CallBack class, through the pass by reference parameter.
      *
-     * @param MatchFinder& mf - A non const reference to the MatchFinder in the main() function.
+     * @param mf  A non const reference to the MatchFinder in the main() function.
      *                     When this object is passed into this method, it is modified, the AST
      *                     matchers are added to it. This is my solution for "returning" multiple
      *                     AST matchers of possibly different types.
@@ -56,22 +66,22 @@ class RemovePointerMatchCallback : public BaseMatchCallback
      * However this method does not do the actual refactoring, rather it determines what type of
      * expresssion was matched and then it calls helper methods to perform the actual refactoring.
      *
-     * @param const MatchResult& result - The matched result returned from the AST matcher.
+     * @param result - The matched result returned from the AST matcher.
      */
     void run(const MatchFinder::MatchResult& result) override;
 
     /**
-	 * Returns the number of successful global pointer removals.
+	 * @return the number of successful global pointer removals.
 	 */
 	unsigned int getNumGlobalPointerRemovals() const { return num_global_pointers; }
 
     /**
-	 * Returns the number of successful pointer use replacements.
+	 * @return the number of successful pointer use replacements.
 	 */
 	unsigned int getNumPointerUseReplacements() const { return num_pointer_uses; }
 
     /**
-	 * Returns the number of successful pointer dereference replacements.
+	 * @return the number of successful pointer dereference replacements.
 	 */
 	unsigned int getNumPointerDereferenceReplacements() const { return num_pointer_dereferences; }
 
@@ -80,9 +90,10 @@ class RemovePointerMatchCallback : public BaseMatchCallback
      * This is a first level helper method called by run().
      * Being given a declaration of a global pointer to structure,
      * this method deletes that declaration from the source code.
+     *
      * If that refactoring is successful, it increments num_global_pointers.
      *
-     * @param const Decl* decl - The declaration of the global pointer.
+     * @param decl  The declaration of the global pointer.
      */
     void remove_global_pointer(const Decl* decl);
 
@@ -92,10 +103,10 @@ class RemovePointerMatchCallback : public BaseMatchCallback
      * that global pointer, where it is used as an address value without being dereferenced,
      * this method replaces that pointer use with the address of the structure to which that
      * pointer points.
+     *
      * If that refactoring is successful, it increments num_pointer_uses.
      *
-     * @param const Expr* expr - An aexpression representing that global pointer being used as
-     *                           an address value.
+     * @param expr  An expression representing that global pointer being used as an address value.
      */
     void replace_pointer_use(const Expr* expr);
 
@@ -104,6 +115,7 @@ class RemovePointerMatchCallback : public BaseMatchCallback
      * Being given a MemberExpr representing dereferencing a global pointer to obtain a field in
      * the structure, this method replaces that expression in the source code with just that struct
      * that the pointer is pointing to, using the dot operator to access that same field.
+     *
      * Example:
      * complete_system_io_M->Timing  to  complete_system_io_M_.Timing
      *
@@ -118,27 +130,30 @@ class RemovePointerMatchCallback : public BaseMatchCallback
      * scenario we have in the code, and then it calls helper functions to do the actual
      * replacements.
      *
-     * @param cosnt MemberExpr* expr - A member expression, specifically an arrow expression.
+     * @param expr  A member expression, specifically an arrow expression.
      */
     void replace_pointer_arrow(const MemberExpr* expr);
 
     /**
      * This is a second level helper method called by replace_pointer_arrow().
      * It performs the replacement only inside a macro.
+     *
      * Being given a Expr* representing a base expression, the pointer which is used,
      * and a SourceLocation, representing that base expression's starting location,
      * this method handles the above mentioned implicit case.
+     *
      * If the global pointer is the argument to a macro,
      * macro(pointer)
      * Then this function replaces that pointer with the address of the structure to which the
      * pointer points.
      * macro(&structure)
+     *
      * If that refactoring is successful, it increments num_pointer_uses.
      *
-     * @param const Expr* baseExp - Represents a base expression, the global pointer which is
-     *                    passed into the macro, and dereferenced by it.
+     * @param baseExp  Represents a base expression, the global pointer which is
+     *                 passed into the macro, and dereferenced by it.
      *
-     * @param SourceLocation loc1 - Represents the starting location of the base expression.
+     * @param loc1  Represents the starting location of the base expression.
      */
     void replace_pointer_use_macro(const Expr* baseExp, SourceLocation loc1);
 
@@ -146,10 +161,11 @@ class RemovePointerMatchCallback : public BaseMatchCallback
      * This is a second helper method called by replace_pointer_arrow().
      * It replaces a pointer dereference such as pointer->field with a direct dot member access
      * using the structure to which that pointer points:  structure.field
+     *
      * If that refactoring is successful, it increments num_pointer_dereferences.
      *
-     * @param const Expr* baseExpr - Represents the base expression of the arrow expression,
-     *                               the pointer itself which is dereferenced.
+     * @param baseExp  Represents the base expression of the arrow expression,
+     *                 the pointer itself which is dereferenced.
      */
     void replace_pointer_dereference(const Expr* baseExp);
 

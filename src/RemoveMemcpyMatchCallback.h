@@ -23,10 +23,10 @@ using clang::tooling::Replacements;
 using clang::ast_matchers::MatchFinder;
 
 /**
- * This class is the CallBack class for removing memcpy.
- * Whenever a memcpy() function call instance is detected in the main() function, it uses
- * this class as a callback and it calls the run() method, which then replaces that memcpy()
- * function call with a functionally equivelent block of code.
+ * @brief CallBack class : Remove memcpy() Module
+ *
+ * @details  Replaces all memcpy() function calls with a functionally equivelent block of code
+ *           (for loop which copies the elements one by one from the src array to the dest array.)
  */
 class RemoveMemcpyMatchCallback : public BaseMatchCallback
 {
@@ -37,10 +37,8 @@ class RemoveMemcpyMatchCallback : public BaseMatchCallback
     /**
      * This is the constructor, which initializes all the member variables of the class.
      *
-     * @param map<string, Replacements> * replacements - A pointer to a std::map of strings and
-     *                                    Replacements objects, which is what we will use to
-     *                                    actually perform the source code replacements in the
-     *                                    refactoring process.
+     * @param replacements  A pointer to a std::map of strings and Replacements objects, which is
+     * what we will use to actually perform the source code replacements in the refactoring process.
      */
     explicit RemoveMemcpyMatchCallback(map<string, Replacements> * replacements)
 		: BaseMatchCallback(), replacements(replacements) {}
@@ -49,7 +47,7 @@ class RemoveMemcpyMatchCallback : public BaseMatchCallback
      * This method creates and "returns" the AST matchers that match expressions specifically
      * handled by this CallBack class, through the pass by reference parameter.
      *
-     * @param MatchFinder& mf - A non const reference to the MatchFinder in the main() function.
+     * @param mf  A non const reference to the MatchFinder in the main() function.
      *                     When this object is passed into this method, it is modified, the AST
      *                     matchers are added to it. This is my solution for "returning" multiple
      *                     AST matchers of possibly different types.
@@ -71,17 +69,17 @@ class RemoveMemcpyMatchCallback : public BaseMatchCallback
      * is set or not.
      * This function catches all exceptions that the functions that it calls throw.
      *
-	 * @param const MatchFinder::MatchResult result - Found matching results.
+	 * @param result  Found matching results.
 	 */
 	void run(const MatchFinder::MatchResult& result) override;
 
 	/**
-	 * Returns the number of successful memcpy() replacements.
+	 * @return the number of successful memcpy() replacements.
 	 */
 	unsigned int getNumReplacements() const { return num_replacements; }
 
     /**
-	 * Returns the number of matches found, the number of times run() function got called.
+	 * @return the number of matches found, the number of times run() method got called.
 	 */
 	unsigned int getNumMatchesFound() const { return num_matches_found; }
 
@@ -93,10 +91,9 @@ class RemoveMemcpyMatchCallback : public BaseMatchCallback
      * holding that value, which can then be manipulated in the C++ code as an integral data type.
      * This helper function is called by RemoveMemcpyMatchCallback::getSizeString().
      *
-     * @param const Expr* expression - Usually this is an IntegerLiteral or a
-     *                    UnaryExprOrTypeTraitExpr AKA sizeof() expression.
+     * @param expr  Usually this is an IntegerLiteral or a UnaryExprOrTypeTraitExpr AKA sizeof() expression.
      *
-     * @return llvm::APInt - An APInt (Arbitrary integer data type) holding the numerical value of
+     * @return llvm::APInt  An APInt (Arbitrary integer data type) holding the numerical value of
      *         the passed in expression.
      *         If an IntegerLiteral is passed in, the APInt holds the value of that IntegerLiteral.
      *         If a sizeof() expression is passed in, the APInt holds 1U.
@@ -116,16 +113,16 @@ class RemoveMemcpyMatchCallback : public BaseMatchCallback
      * layers of casts, implicit conversions, array subscript expressions, and etc.
      * It peels away these layers, constructs a string representing the argument, and returns it.
      *
-     * @param const Expr* expr - An expression containing within itself the argument to memcpy().
+     * @param expr  An expression containing within itself the argument to memcpy().
      *        All top level casts and parenthesis expressions have since been peeled away.
      *        The pointer is not const but the underlying object to which it points is const.
      *         This allows us to reassign the pointer.
      *
-     * @param const string& var - If the expression is of an array or pointer type, then the
+     * @param var  If the expression is of an array or pointer type, then the
      *                      subscript operator [] is appended to the end of the expression string,
      *                      and var is used as the index variable in this case: x[var].
      *
-     * @return string - A string representing the full argument to memcpy(), with added
+     * @return string  A string representing the full argument to memcpy(), with added
      *         array subscript operator [var] if this argument is an array or pointer type.
      *
      * @throw std::range_error if during peeling away layers of expr, it finds an expression
@@ -143,7 +140,8 @@ class RemoveMemcpyMatchCallback : public BaseMatchCallback
      * which is the number of bytes to copy, this function returns a string which is the number
      * of elements to copy, since my current algorithm copies elements element by element
      * instead of byte by byte as memcpy() does.
-     * NOTE: This function is not recursive.
+     *
+     * @note This function is not recursive.
      *
      * This algorithm recognizes the following types of expressions:
      * an integer literal, a sizeof() expression, a variable, and a binary operator.
@@ -159,22 +157,22 @@ class RemoveMemcpyMatchCallback : public BaseMatchCallback
      * An example of such optimization would be evaluating the binary operator expression
      * and returning the result when both operands are literals.
      *
-     * @param const Expr* expr - The size expression which is the third argumetn to memcpy().
+     * @param expr  The size expression which is the third argumetn to memcpy().
      *                    Valid types are BinaryOperator, DeclRefExpr, UnaryExprOrTypeTraitExpr,
      *                    and IntegerLiteral.
      *
-     * @return string - A string representing the number of elements to copy, necessary for
-     *                  producing the same effect as memcpy().
+     * @return string  A string representing the number of elements to copy, necessary for
+     *                 producing the same effect as memcpy().
      *
      * @throw BadOperator if the BinaryOperator is not recognized/supported by the function yet.
      *
      * @throw std::string if the type_string is empty or if the type trait associated with the
      *        UnaryExprOrTypeTraitExpr is not sizeof().
      *
-     * @throw std::invalid_argument - This is due to an invalid const Expr *expr being passed in.
-     *                                If the DeclRefExpr does not have an associated ValueDecl, or
-     *                                if the Expr is not one of the recognized types
-     *                                mentioned above.
+     * @throw std::invalid_argument  This is due to an invalid const Expr *expr being passed in.
+     *                               If the DeclRefExpr does not have an associated ValueDecl, or
+     *                               if the Expr is not one of the recognized types
+     *                               mentioned above.
      *
      * @throw NonMatchingTypes if the data type of this particular argument to memcpy()
      *        doesn't match the data types to other processed arguments.
@@ -185,12 +183,12 @@ class RemoveMemcpyMatchCallback : public BaseMatchCallback
 
     map<string, Replacements>* replacements;
 
-    // This is a string representation of the elements we're copying.
-    // Used for checking if the data types of the arguments match.
+    /// This is a string representation of the elements we're copying.
+    /// Used for checking if the data types of the arguments match.
     string type_string;
-    // The number of successful memcpy() replacements.
+    /// The number of successful memcpy() replacements.
     unsigned int num_replacements{0};
-    // The number of matches found, the number of times run() function got called.
+    /// The number of matches found, the number of times run() function got called.
     unsigned int num_matches_found{0};
 	// Add other variables here as needed.
 };

@@ -22,6 +22,12 @@ using clang::tooling::Replacements;
 using clang::ast_matchers::MatchFinder;
 
 
+/**
+ * @brief CallBack class : Remove hypot() Module
+ *
+ * @details This class replaces all occurences of hypot() with a formula that manually calculates
+ * the length of hypotenouse from the legs using the Pythagorean Theorem.
+ */
 class RemoveHypotMatchCallback : public BaseMatchCallback
 {
   public:
@@ -30,10 +36,8 @@ class RemoveHypotMatchCallback : public BaseMatchCallback
      * The explicit keyword means that we cannot use the assignment = operator to initialize an
      * instance of this class.
      *
-     * @param map<string, Replacements> * replacements - A pointer to a std::map of strings and
-     *                                    Replacements objects, which is what we will use to
-     *                                    actually perform the source code replacements in the
-     *                                    refactoring process.
+     * @param replacements  A pointer to a std::map of strings and Replacements objects, which is
+     * what we will use to actually perform the source code replacements in the refactoring process.
      */
     explicit RemoveHypotMatchCallback(map<string, Replacements> * replacements)
       : BaseMatchCallback(), replacements(replacements) {}
@@ -42,7 +46,7 @@ class RemoveHypotMatchCallback : public BaseMatchCallback
      * This method creates and "returns" the AST matchers that match expressions specifically
      * handled by this CallBack class, through the pass by reference parameter.
      *
-     * @param MatchFinder& mf - A non const reference to the MatchFinder in the main() function.
+     * @param mf  A non const reference to the MatchFinder in the main() function.
      *                     When this object is passed into this method, it is modified, the AST
      *                     matchers are added to it. This is my solution for "returning" multiple
      *                     AST matchers of possibly different types.
@@ -62,12 +66,12 @@ class RemoveHypotMatchCallback : public BaseMatchCallback
      * If unsuccessful an error is printed to the stderr together with the expression which caused
      * the error, regardless of whether the debug flag is set or not.
      *
-	 * @param const MatchFinder::MatchResult result - Found matching results.
+	 * @param result  Found matching results.
      */
     void run(const MatchFinder::MatchResult& result) override;
 
     /**
-	 * Returns the number of successful hypot() replacements.
+	 * @return the number of successful hypot() replacements.
 	 */
 	unsigned int getNumHypotReplacements() const { return num_hypot_replacements; }
 

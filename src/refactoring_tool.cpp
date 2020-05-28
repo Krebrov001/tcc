@@ -1,3 +1,20 @@
+/**
+ * @file refactoring_tool.cpp
+ * @author Konstantin Rebrov
+ *
+ * @brief This file contains the main() function, and is the entrance into the application.
+ *
+ * @details Processes command line arguments, includes all the other modules, and runs a series of passes
+ * over the input source code files, making replacements in place, and prints final statistics about
+ * it's completed tasks.
+ *
+ * @copyright
+ * McLeod Institute of Simulation Sciences
+ * California State University, Chico
+ * Chico, CA 95929-0888
+ * Contact: kkredo@csuchico.edu
+ */
+
 /*
  * As part of LLVM coding standards, you should organize your include statements by putting local headers
  * first, followed by Clang and LLVM API headers. When two headers pertain to the same category,
@@ -145,7 +162,7 @@ int main(int argc, const char **argv) {
         [](raw_ostream& os) {
             const string version_information = "ONR Project STAR Tool\n"
                                                "By Konstantin Rebrov\n"
-                                               "development version Jan 2019\n";
+                                               "development version May 2020\n";
             os << version_information;
         }
     );

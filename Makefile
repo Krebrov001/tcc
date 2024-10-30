@@ -69,6 +69,7 @@ O_FILES    := $(CXX_FILES:cpp=o)
 # https://www.youtube.com/watch?v=oxpsHk1yq88
 CHECKS := -checks=-*,bugprone-*,cert-*,-cert-err58-cpp,cppcoreguidelines-*,-cppcoreguidelines-pro-bounds-pointer-arithmetic,clang-analyzer-*,hicpp-*,llvm-*,-llvm-header-guard,misc-*,modernize-*,performance-*,portability-*,readability-*
 
+
 # Build executables
 .PHONY: all
 all: $(EXECUTABLE)
@@ -137,3 +138,13 @@ refactor: $(addprefix $(BINDIR)/,$(EXECUTABLE))
 clean:
 	rm -f $(EXECUTABLE) $(O_FILES)
 	sudo rm -f $(addprefix $(BINDIR)/,$(EXECUTABLE))
+
+# Temp stuff
+.PHONY: show
+show:
+	echo $(BINDIR)
+	echo $(LLVMCONFIG)
+	echo $(LLVMCOMPONENTS)
+	echo $(CXXFLAGS)
+	echo $(LDFLAGS)
+	echo $(TARGET_ARCH)

@@ -79,6 +79,32 @@ void RemovePointerMatchCallback::getASTmatchers(MatchFinder& mf)
 }
 
 
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Function.h>
+#include <llvm/IR/Value.h>
+#include <llvm/IR/Type.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/Constant.h>
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/Instruction.h>
+#include <llvm/IR/Instructions.h>
+#include <llvm/ADT/APInt.h>
+using llvm::ConstantInt;
+using llvm::VectorType;
+using llvm::APInt;
+
+#define getIntLiteral(llvm_context, size, value) \
+    ConstantInt::get(Type::getInt##size##Ty(##llvm_context##), APInt(##size##,##value##, /*isSigned =*/ true))
+
+#define getVectorType(element_type, num_elements) \
+    VectorType::get(##element_type##, (unsigned int)##num_elements##)
+
+#define getVectorLiteral_1(llvm_context, size, num_elements) \
+    ConstantVector::get(ArrayRef(vector<Constant*>(##num_elements##, getIntLiteral(##llvm_context##,##size##, 0))))
+
+#define getVectorLiteral_2(llvm_context, IntegerType, num_elements) \
+    ConstantVector::get(ArrayRef(vector<Constant*>(##num_elements##, ConstantInt::get(##IntegerType##, 0ull))))
+
 void RemovePointerMatchCallback::run(const MatchFinder::MatchResult& result)
 {
     SM = result.SourceManager;

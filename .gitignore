@@ -48,3 +48,6 @@ hls/*/.project
 hls/*/.cproject
 hls/*/.settings
 
+# other directories
+clang_tutorials
+clang_tutorials/*
